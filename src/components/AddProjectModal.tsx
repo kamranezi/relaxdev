@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Github, Lock, Search, Loader2, X, Check } from 'lucide-react'; // Добавил X и Check
+import { Github, Lock, Search, Loader2, X } from 'lucide-react';
 import { useSession } from 'next-auth/react';
 
 interface AddProjectModalProps {
@@ -14,24 +14,30 @@ interface AddProjectModalProps {
   language: 'ru' | 'en';
 }
 
+// Тип для объекта репозитория
+interface Repo {
+  id: number;
+  name: string;
+  full_name: string;
+  url: string;
+  private: boolean;
+}
+
 export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProjectModalProps) {
   const { data: session } = useSession();
   const [gitUrl, setGitUrl] = useState('');
   const [projectName, setProjectName] = useState('');
-  const [gitToken, setGitToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Состояния для поиска и выбора
-  const [repos, setRepos] = useState<any[]>([]);
+  const [repos, setRepos] = useState<Repo[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedRepo, setSelectedRepo] = useState<any>(null); // <--- НОВОЕ: выбранный репо
+  const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
 
   useEffect(() => {
     if (isOpen && session) {
       loadRepos();
     }
-    // Сброс при открытии
     if (isOpen) {
         setSelectedRepo(null);
         setGitUrl('');
@@ -54,8 +60,8 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
     }
   };
 
-  const handleRepoSelect = (repo: any) => {
-    setSelectedRepo(repo); // Запоминаем выбор
+  const handleRepoSelect = (repo: Repo) => {
+    setSelectedRepo(repo);
     setGitUrl(repo.url);
     setProjectName(repo.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
   };
@@ -70,9 +76,11 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
     if (!gitUrl || !projectName) return;
     setIsLoading(true);
     try {
-      await onDeploy(gitUrl, projectName, gitToken);
+      // Токен пока не используется, передаем пустую строку
+      await onDeploy(gitUrl, projectName, '');
       onClose();
     } catch (error) {
+      console.error("Ошибка деплоя:", error);
       alert('Error deploying project');
     } finally {
       setIsLoading(false);
@@ -97,7 +105,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                  </div>
             ) : (
                 <div className="flex flex-col gap-4">
-                    {/* Если репозиторий ВЫБРАН - показываем компактную карточку */}
                     {selectedRepo ? (
                         <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
                             <div className="flex items-center gap-3 overflow-hidden">
@@ -123,7 +130,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                             </Button>
                         </div>
                     ) : (
-                        /* Если репозиторий НЕ выбран - показываем поиск и список */
                         <>
                             <Input 
                                 placeholder={language === 'ru' ? "Поиск репозитория..." : "Search repositories..."}
@@ -172,7 +178,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                     />
                 </div>
                 
-                {/* Поле Git URL показываем только если не выбрали из списка (ручной ввод) */}
                 {!selectedRepo && (
                     <div className="space-y-2">
                          <label className="text-xs font-medium text-gray-400">Git URL</label>

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSession, signIn, signOut } from "next-auth/react"; // <--- Импорт Auth
+import { useState, useEffect, useCallback } from 'react';
+import Image from 'next/image';
+import { useSession, signIn, signOut } from "next-auth/react";
 import { Project } from '@/types';
 import { getTranslation, Language } from '@/lib/i18n';
 import { ProjectCard } from '@/components/ProjectCard';
@@ -11,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
-  const { data: session } = useSession(); // <--- Получаем данные сессии
+  const { data: session } = useSession();
   const [language, setLanguage] = useState<Language>('ru');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -19,8 +20,7 @@ export default function Home() {
 
   const t = getTranslation(language);
 
-  // Функция загрузки данных из нашего API (который ходит в Яндекс)
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch('/api/projects');
@@ -29,24 +29,16 @@ export default function Home() {
         const validApiProjects = Array.isArray(apiProjects) ? apiProjects : [];
 
         setProjects(currentProjects => {
-          // Находим проекты со статусом "Сборка" на клиенте
           const buildingProjects = currentProjects.filter(
             p => p.status === t.status.building
           );
-
-          // Создаем набор ID проектов с сервера для быстрой проверки
-          const apiProjectIds = new Set(validApiProjects.map(p => p.id));
-
-          // Убираем из "собирающихся" те, что уже пришли с сервера
+          const apiProjectIds = new Set(validApiProjects.map((p: Project) => p.id));
           const uniqueBuildingProjects = buildingProjects.filter(
             p => !apiProjectIds.has(p.id)
           );
-
-          // Объединяем проекты с сервера и уникальные проекты в статусе сборки
           const combinedProjects = [...validApiProjects, ...uniqueBuildingProjects];
 
-          // Сортируем и обновляем стейт
-          return combinedProjects.sort((a: any, b: any) => 
+          return combinedProjects.sort((a: Project, b: Project) => 
             new Date(b.lastDeployed).getTime() - new Date(a.lastDeployed).getTime()
           );
         });
@@ -56,14 +48,13 @@ export default function Home() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [t.status.building]);
 
-  // 1. ЗАГРУЗКА: При открытии страницы + авто-обновление каждые 10 сек
   useEffect(() => {
     fetchProjects();
-    const interval = setInterval(fetchProjects, 10000); // 10 секунд
+    const interval = setInterval(fetchProjects, 10000); 
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchProjects]);
 
   const formatTimeAgo = (timeStr: string): string => {
     if (!timeStr) return '';
@@ -98,7 +89,6 @@ export default function Home() {
 
       const newProject = await response.json();
       
-      // Добавляем проект в список "оптимистично"
       const localizedProject: Project = {
         ...newProject,
         status: t.status.building,
@@ -106,7 +96,6 @@ export default function Home() {
       };
 
       setProjects((prev) => [localizedProject, ...prev]);
-      // Запускаем обновление, чтобы подхватить статус, как только он появится
       setTimeout(fetchProjects, 3000); 
     } catch (error) {
       console.error('Deploy error:', error);
@@ -129,7 +118,6 @@ export default function Home() {
             <Bell className="h-5 w-5 md:h-6 md:w-6" />
           </button>
           
-          {/* СЕКЦИЯ АВТОРИЗАЦИИ */}
           {session ? (
             <div className="flex items-center gap-3 pl-2 border-l border-gray-800">
               <div className="text-right hidden sm:block">
@@ -137,10 +125,12 @@ export default function Home() {
                 <div className="text-xs text-gray-500">{session.user?.email}</div>
               </div>
               {session.user?.image && (
-                <img 
+                <Image 
                   src={session.user.image} 
                   alt="Avatar" 
-                  className="h-8 w-8 md:h-10 md:w-10 rounded-full border border-gray-700"
+                  width={40}
+                  height={40}
+                  className="rounded-full border border-gray-700"
                 />
               )}
               <Button 
@@ -166,7 +156,6 @@ export default function Home() {
             <h2 className="text-2xl md:text-3xl font-bold text-white">
               {t.projects}
             </h2>
-            {/* Кнопка ручного обновления */}
             <button 
               onClick={fetchProjects} 
               disabled={isLoading} 

@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     // Передаем authOptions в getServerSession
     const session = await getServerSession(authOptions);
     
-    const ownerLogin = session?.user?.name || 'anonymous';
+    const ownerLogin = session?.user?.login || 'anonymous';
 
     const body = await request.json();
     const { gitUrl, projectName, gitToken } = body;
@@ -47,10 +47,11 @@ export async function POST(request: NextRequest) {
       domain: `${safeName}.containers.yandexcloud.net`,
     });
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('GitHub API Error:', error);
+    const message = error instanceof Error ? error.message : 'Failed to trigger build';
     return NextResponse.json(
-      { error: error.message || 'Failed to trigger build' }, 
+      { error: message }, 
       { status: 500 }
     );
   }

@@ -8,7 +8,7 @@ export async function getIAMToken() {
       });
       const data = await response.json();
       return data.access_token;
-    } catch (e) {
+    } catch {
       console.warn('Не удалось получить IAM токен из метаданных. Вы локально?');
       return process.env.YC_IAM_TOKEN || ''; // Fallback для локальной разработки
     }

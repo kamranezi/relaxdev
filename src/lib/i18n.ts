@@ -20,6 +20,10 @@ export const translations = {
       hoursAgo: (n: number) => `${n} ${n === 1 ? 'час' : n < 5 ? 'часа' : 'часов'} назад`,
       daysAgo: (n: number) => `${n} ${n === 1 ? 'день' : n < 5 ? 'дня' : 'дней'} назад`,
     },
+    signin: 'Войти через GitHub',
+    signout: 'Выйти',
+    noProjectsTitle: 'Нет активных проектов',
+    noProjectsDescription: 'Ваш список контейнеров в Яндекс Облаке пуст.',
   },
   en: {
     projects: 'Projects',
@@ -35,15 +39,16 @@ export const translations = {
       error: 'Error',
     },
     timeAgo: {
-      justNow: 'Just now',
-      minutesAgo: (n: number) => `${n} ${n === 1 ? 'minute' : 'minutes'} ago`,
-      hoursAgo: (n: number) => `${n} ${n === 1 ? 'hour' : 'hours'} ago`,
-      daysAgo: (n: number) => `${n} ${n === 1 ? 'day' : 'days'} ago`,
+        justNow: 'Just now',
+        minutesAgo: (n: number) => `${n} min${n === 1 ? '' : 's'} ago`,
+        hoursAgo: (n: number) => `${n} hour${n === 1 ? '' : 's'} ago`,
+        daysAgo: (n: number) => `${n} day${n === 1 ? '' : 's'} ago`,
     },
+    signin: 'Sign In with GitHub',
+    signout: 'Sign Out',
+    noProjectsTitle: 'No active projects',
+    noProjectsDescription: 'Your Yandex Cloud container list is empty.',
   },
-} as const;
+};
 
-export function getTranslation(lang: Language) {
-  return translations[lang];
-}
-
+export const getTranslation = (lang: Language) => translations[lang];

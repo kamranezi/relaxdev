@@ -1,4 +1,5 @@
-import NextAuth, { AuthOptions } from "next-auth";
+import NextAuth, { AuthOptions, Session } from "next-auth";
+import { JWT } from "next-auth/jwt";
 import GithubProvider from "next-auth/providers/github";
 
 // 1. Экспортируем настройки (authOptions) отдельно
@@ -21,12 +22,11 @@ export const authOptions: AuthOptions = {
       }
       return token;
     },
-    async session({ session, token }: any) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       session.accessToken = token.accessToken;
       // Добавляем логин пользователя в сессию (пригодится для фильтрации проектов)
       if (session.user) {
-         // @ts-ignore
-         session.user.login = token.sub; // Или другое поле, где лежит логин
+         session.user.login = token.sub;
       }
       return session;
     },

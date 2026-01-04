@@ -43,8 +43,9 @@ export async function GET() {
 
     return NextResponse.json(repos);
 
-  } catch (error: any) {
+  } catch (error) {
     console.error('GitHub API Error:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to fetch repositories';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

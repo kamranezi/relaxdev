@@ -1,7 +1,7 @@
 'use client';
 
 import { Project } from '@/types';
-import { getTranslation, Language } from '@/lib/i18n';
+import { Language } from '@/lib/i18n';
 import { CheckCircle2, Loader2, XCircle, ExternalLink } from 'lucide-react';
 
 interface ProjectCardProps {
@@ -28,12 +28,9 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 );
 
 export function ProjectCard({ project, language }: ProjectCardProps) {
-  const t = getTranslation(language);
-  
   const getStatusConfig = () => {
     const isActive = project.status === 'Активен' || project.status === 'Live';
     const isBuilding = project.status === 'Сборка' || project.status === 'Building';
-    const isError = project.status === 'Ошибка' || project.status === 'Error';
     
     if (isActive) {
       return {
