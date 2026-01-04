@@ -65,28 +65,34 @@ export function ProjectCard({ project, language }: ProjectCardProps) {
 
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
+  const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
 
   return (
-    <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-6 hover:shadow-cyan-500/20 hover:border border-gray-800 transition-all duration-300 group">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors">
-          {project.name}
-        </h3>
-        <a
-          href={project.repoUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-gray-400 hover:text-white transition-colors"
-          title="GitHub Repository"
-        >
-          <GithubIcon className="h-5 w-5" />
-        </a>
+    <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-6 hover:shadow-cyan-500/20 hover:border border-gray-800 transition-all duration-300 group flex flex-col justify-between">
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors">
+            {project.name}
+          </h3>
+          <a
+            href={project.repoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-gray-400 hover:text-white transition-colors"
+            title="GitHub Repository"
+          >
+            <GithubIcon className="h-5 w-5" />
+          </a>
+        </div>
+        
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-gray-400 font-mono text-sm truncate">{project.domain}</p>
+          <a href={domainUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs bg-gray-700/50 hover:bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full transition-colors">
+              Visit
+              <ExternalLink className="h-3.5 w-3.5" />
+          </a>
+        </div>
       </div>
-      
-      <a href={`https://${project.domain}`} target="_blank" rel="noopener noreferrer" className="text-gray-400 mb-4 font-mono text-sm hover:text-cyan-400 transition-colors flex items-center gap-2">
-        {project.domain}
-        <ExternalLink className="h-4 w-4" />
-      </a>
       
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
