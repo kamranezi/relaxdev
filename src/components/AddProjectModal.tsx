@@ -4,8 +4,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"; // Если нет shadcn tabs, можно простыми кнопками
-import { Github, Link as LinkIcon, Lock, Search, Loader2 } from 'lucide-react';
+import { Github, Lock, Search, Loader2, X, Check } from 'lucide-react'; // Добавил X и Check
 import { useSession } from 'next-auth/react';
 
 interface AddProjectModalProps {
@@ -22,15 +21,22 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
   const [gitToken, setGitToken] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   
-  // Для списка репозиториев
+  // Состояния для поиска и выбора
   const [repos, setRepos] = useState<any[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRepo, setSelectedRepo] = useState<any>(null); // <--- НОВОЕ: выбранный репо
 
-  // Загрузка репозиториев при открытии
   useEffect(() => {
     if (isOpen && session) {
       loadRepos();
+    }
+    // Сброс при открытии
+    if (isOpen) {
+        setSelectedRepo(null);
+        setGitUrl('');
+        setProjectName('');
+        setSearchQuery('');
     }
   }, [isOpen, session]);
 
@@ -49,11 +55,15 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
   };
 
   const handleRepoSelect = (repo: any) => {
+    setSelectedRepo(repo); // Запоминаем выбор
     setGitUrl(repo.url);
-    // Автоматически ставим имя проекта (чистим от спецсимволов)
     setProjectName(repo.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
-    // Если репо приватный, можно сразу подсказать пользователю про токен
-    // Но так как мы уже авторизованы через App, токен может и не понадобиться, если допилим Builder
+  };
+
+  const handleResetSelection = () => {
+    setSelectedRepo(null);
+    setGitUrl('');
+    setProjectName('');
   };
 
   const handleDeployClick = async () => {
@@ -62,10 +72,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
     try {
       await onDeploy(gitUrl, projectName, gitToken);
       onClose();
-      // Сброс полей
-      setGitUrl('');
-      setProjectName('');
-      setGitToken('');
     } catch (error) {
       alert('Error deploying project');
     } finally {
@@ -84,7 +90,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
           <DialogTitle>{language === 'ru' ? 'Новый проект' : 'New Project'}</DialogTitle>
         </DialogHeader>
 
-        {/* Простой переключатель вкладок, если нет shadcn Tabs */}
         <div className="space-y-4">
             {!session ? (
                  <div className="text-center py-4 text-gray-400">
@@ -92,35 +97,67 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                  </div>
             ) : (
                 <div className="flex flex-col gap-4">
-                    <Input 
-                        placeholder={language === 'ru' ? "Поиск репозитория..." : "Search repositories..."}
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                        className="bg-black/50 border-gray-700"
-                        prefix={<Search className="w-4 h-4 text-gray-500" />}
-                    />
-                    
-                    <div className="h-[200px] overflow-y-auto border border-gray-800 rounded-md p-2 space-y-1">
-                        {isLoadingRepos ? (
-                            <div className="flex justify-center p-4"><Loader2 className="animate-spin" /></div>
-                        ) : filteredRepos.length === 0 ? (
-                            <div className="text-center text-gray-500 p-4">Ничего не найдено</div>
-                        ) : (
-                            filteredRepos.map((repo) => (
-                                <div 
-                                    key={repo.id}
-                                    onClick={() => handleRepoSelect(repo)}
-                                    className={`p-2 rounded cursor-pointer flex items-center justify-between text-sm ${gitUrl === repo.url ? 'bg-blue-900/30 border border-blue-500/50' : 'hover:bg-white/5'}`}
-                                >
-                                    <div className="flex items-center gap-2">
-                                        {repo.private ? <Lock className="w-3 h-3 text-yellow-500" /> : <Github className="w-3 h-3 text-gray-400" />}
-                                        <span className="truncate max-w-[280px]">{repo.full_name}</span>
-                                    </div>
-                                    <Button variant="ghost" size="sm" className="h-6 text-xs">Select</Button>
+                    {/* Если репозиторий ВЫБРАН - показываем компактную карточку */}
+                    {selectedRepo ? (
+                        <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
+                            <div className="flex items-center gap-3 overflow-hidden">
+                                <div className="bg-blue-500/20 p-2 rounded-full">
+                                    <Github className="w-4 h-4 text-blue-400" />
                                 </div>
-                            ))
-                        )}
-                    </div>
+                                <div className="flex flex-col min-w-0">
+                                    <span className="text-sm font-medium text-blue-100 truncate">
+                                        {selectedRepo.full_name}
+                                    </span>
+                                    <span className="text-xs text-blue-300/70 truncate">
+                                        {selectedRepo.url}
+                                    </span>
+                                </div>
+                            </div>
+                            <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                onClick={handleResetSelection}
+                                className="text-gray-400 hover:text-white hover:bg-white/10 h-8 w-8 p-0 rounded-full"
+                            >
+                                <X className="w-4 h-4" />
+                            </Button>
+                        </div>
+                    ) : (
+                        /* Если репозиторий НЕ выбран - показываем поиск и список */
+                        <>
+                            <Input 
+                                placeholder={language === 'ru' ? "Поиск репозитория..." : "Search repositories..."}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="bg-black/50 border-gray-700"
+                                prefix={<Search className="w-4 h-4 text-gray-500" />}
+                            />
+                            
+                            <div className="h-[200px] overflow-y-auto border border-gray-800 rounded-md p-2 space-y-1 custom-scrollbar">
+                                {isLoadingRepos ? (
+                                    <div className="flex justify-center p-4"><Loader2 className="animate-spin text-gray-500" /></div>
+                                ) : filteredRepos.length === 0 ? (
+                                    <div className="text-center text-gray-500 p-4 text-sm">Ничего не найдено</div>
+                                ) : (
+                                    filteredRepos.map((repo) => (
+                                        <div 
+                                            key={repo.id}
+                                            onClick={() => handleRepoSelect(repo)}
+                                            className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group"
+                                        >
+                                            <div className="flex items-center gap-2 overflow-hidden">
+                                                {repo.private ? <Lock className="w-3 h-3 text-yellow-500 shrink-0" /> : <Github className="w-3 h-3 text-gray-400 shrink-0" />}
+                                                <span className="truncate text-gray-300 group-hover:text-white">{repo.full_name}</span>
+                                            </div>
+                                            <Button variant="ghost" size="sm" className="h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-gray-400">
+                                                Select
+                                            </Button>
+                                        </div>
+                                    ))
+                                )}
+                            </div>
+                        </>
+                    )}
                 </div>
             )}
 
@@ -135,22 +172,24 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                     />
                 </div>
                 
-                {/* Если выбран не из списка, показываем поле URL */}
-                <div className="space-y-2">
-                     <label className="text-xs font-medium text-gray-400">Git URL</label>
-                    <Input
-                        value={gitUrl}
-                        onChange={(e) => setGitUrl(e.target.value)}
-                        placeholder="https://github.com/..."
-                        className="bg-black/50 border-gray-700"
-                    />
-                </div>
+                {/* Поле Git URL показываем только если не выбрали из списка (ручной ввод) */}
+                {!selectedRepo && (
+                    <div className="space-y-2">
+                         <label className="text-xs font-medium text-gray-400">Git URL</label>
+                        <Input
+                            value={gitUrl}
+                            onChange={(e) => setGitUrl(e.target.value)}
+                            placeholder="https://github.com/..."
+                            className="bg-black/50 border-gray-700"
+                        />
+                    </div>
+                )}
             </div>
 
             <Button 
                 onClick={handleDeployClick} 
                 disabled={isLoading || !projectName || !gitUrl} 
-                className="w-full bg-white text-black hover:bg-gray-200 mt-2"
+                className="w-full bg-white text-black hover:bg-gray-200 mt-2 font-medium"
             >
                 {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : (language === 'ru' ? 'Деплой' : 'Deploy')}
             </Button>
