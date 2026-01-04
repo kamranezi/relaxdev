@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Project } from '@/types';
-import { Language, getTranslation } from '@/lib/i18n';
+import { getTranslation, Language } from '@/lib/i18n';
 import { ProjectCard } from '@/components/ProjectCard';
 import { AddProjectModal } from '@/components/AddProjectModal';
 import { LanguageToggle } from '@/components/LanguageToggle';
@@ -11,78 +11,87 @@ import { Plus, Bell, Layers } from 'lucide-react';
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>('ru');
-  const [projects, setProjects] = useState<Project[]>([
-    {
-      id: 'proj_1',
-      name: 'E-commerce Store',
-      status: 'Активен',
-      repoUrl: 'https://github.com/user/ecommerce-store',
-      lastDeployed: '2 минуты назад',
-      targetImage: 'cr.yandex/crp-placeholder/ecommerce-store:v1',
-      domain: 'ecommerce-store.ruvercel.app',
-    },
-    {
-      id: 'proj_2',
-      name: 'Portfolio Website',
-      status: 'Сборка',
-      repoUrl: 'https://github.com/user/portfolio',
-      lastDeployed: '5 минут назад',
-      targetImage: 'cr.yandex/crp-placeholder/portfolio:v1',
-      domain: 'portfolio.ruvercel.app',
-    },
-  ]);
+  const [isMounted, setIsMounted] = useState(false); // Нужно для корректной работы с LocalStorage
+  const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const t = getTranslation(language);
 
-  const formatTimeAgo = (timeStr: string): string => {
-    // If already formatted, return as is
-    if (timeStr.includes('назад') || timeStr.includes('ago')) {
-      return timeStr;
+  // 1. ЗАГРУЗКА: При открытии страницы пытаемся достать данные из памяти
+  useEffect(() => {
+    setIsMounted(true);
+    const savedProjects = localStorage.getItem('ruvercel-projects');
+    if (savedProjects) {
+      try {
+        setProjects(JSON.parse(savedProjects));
+      } catch (e) {
+        console.error('Ошибка чтения LocalStorage', e);
+      }
+    } else {
+      // Демо-данные, если память пуста
+      setProjects([
+        {
+          id: 'proj_1',
+          name: 'Demo Shop',
+          status: 'Активен',
+          repoUrl: 'https://github.com/vercel/next-learn',
+          lastDeployed: '10 минут назад',
+          targetImage: 'cr.yandex/demo',
+          domain: 'demo.ruvercel.app',
+        }
+      ]);
     }
-    
-    // Parse "X minutes ago" format and convert
+  }, []);
+
+  // 2. СОХРАНЕНИЕ: При любом изменении списка сохраняем его в память
+  useEffect(() => {
+    if (isMounted) {
+      localStorage.setItem('ruvercel-projects', JSON.stringify(projects));
+    }
+  }, [projects, isMounted]);
+
+  const formatTimeAgo = (timeStr: string): string => {
+    if (timeStr.includes('назад') || timeStr.includes('ago')) return timeStr;
     const minutesMatch = timeStr.match(/(\d+)\s*(minute|минут)/i);
     if (minutesMatch) {
       const n = parseInt(minutesMatch[1]);
       return language === 'ru' ? t.timeAgo.minutesAgo(n) : `${n} ${n === 1 ? 'minute' : 'minutes'} ago`;
     }
-    
     return timeStr;
   };
 
-  const handleDeploy = async (gitUrl: string, projectName: string) => {
+  const handleDeploy = async (gitUrl: string, projectName: string, gitToken?: string) => {
     try {
       const response = await fetch('/api/deploy', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ gitUrl, projectName }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gitUrl, projectName, gitToken }),
       });
 
-      if (!response.ok) {
-        throw new Error('Deployment failed');
-      }
+      if (!response.ok) throw new Error('Deployment failed');
 
       const newProject = await response.json();
       
-      // Localize status and time
       const localizedProject: Project = {
         ...newProject,
         status: language === 'ru' ? 'Сборка' : 'Building',
         lastDeployed: language === 'ru' ? 'Только что' : 'Just now',
       };
 
+      // Добавляем новый проект в начало списка
       setProjects((prev) => [localizedProject, ...prev]);
       
-      // Log Yandex Registry URL as requested
-      console.log('Yandex Container Registry URL:', newProject.targetImage);
+      console.log('Новый проект добавлен:', newProject);
     } catch (error) {
       console.error('Deploy error:', error);
       throw error;
     }
   };
+
+  // Пока не загрузились данные из браузера, не показываем контент (чтобы не прыгало)
+  if (!isMounted) {
+    return <div className="min-h-screen bg-[#0A0A0A]" />;
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-gray-300 font-sans">
@@ -123,14 +132,9 @@ export default function Home() {
               {language === 'ru' ? 'Нет проектов' : 'No projects'}
             </h3>
             <p className="text-gray-500 mb-6">
-              {language === 'ru'
-                ? 'Начните с добавления вашего первого проекта'
-                : 'Start by adding your first project'}
+              {language === 'ru' ? 'Начните с добавления проекта' : 'Start by adding your first project'}
             </p>
-            <Button
-              onClick={() => setIsModalOpen(true)}
-              className="bg-white text-black hover:bg-gray-200"
-            >
+            <Button onClick={() => setIsModalOpen(true)} className="bg-white text-black hover:bg-gray-200">
               <Plus className="h-4 w-4 mr-2" />
               {t.addProject}
             </Button>

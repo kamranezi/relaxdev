@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     
     // ВЫЗОВ СБОРКИ: Пинаем наш репозиторий-сборщик
     await octokit.actions.createWorkflowDispatch({
-      owner: process.env.BUILDER_REPO_OWNER || 'твое_имя_пользователя',
+      owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
       repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
       workflow_id: 'universal-builder.yml',
       ref: 'main', // Ветка, где лежит yml файл
