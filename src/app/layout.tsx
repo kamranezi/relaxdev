@@ -14,33 +14,33 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RuVercel - Российская платформа для деплоя",
-  description: "RuVercel - современная PaaS платформа для деплоя проектов на Yandex Cloud. Деплой Next.js, React и других приложений за секунды.",
-  keywords: ["RuVercel", "деплой", "PaaS", "Yandex Cloud", "Next.js", "React", "веб-разработка"],
-  authors: [{ name: "RuVercel Team" }],
-  creator: "RuVercel",
-  publisher: "RuVercel",
+  title: "Relax Dev - Российская платформа для деплоя",
+  description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud. Деплой Next.js, React и других приложений за секунды.",
+  keywords: ["Relax Dev", "деплой", "PaaS", "Yandex Cloud", "Next.js", "React", "веб-разработка"],
+  authors: [{ name: "Relax Dev Team" }],
+  creator: "Relax Dev",
+  publisher: "Relax Dev",
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://ruvercel.app"),
   openGraph: {
     type: "website",
     locale: "ru_RU",
     url: "/",
-    title: "RuVercel - Российская платформа для деплоя",
-    description: "RuVercel - современная PaaS платформа для деплоя проектов на Yandex Cloud",
-    siteName: "RuVercel",
+    title: "Relax Dev - Российская платформа для деплоя",
+    description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud",
+    siteName: "Relax Dev",
     images: [
       {
         url: "/bg.webp",
         width: 1200,
         height: 630,
-        alt: "RuVercel Dashboard",
+        alt: "Relax Dev Dashboard",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "RuVercel - Российская платформа для деплоя",
-    description: "RuVercel - современная PaaS платформа для деплоя проектов на Yandex Cloud",
+    title: "Relax Dev - Российская платформа для деплоя",
+    description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud",
     images: ["/bg.webp"],
   },
   icons: {

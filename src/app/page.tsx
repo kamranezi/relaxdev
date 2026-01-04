@@ -104,7 +104,7 @@ export default function Home() {
         <div className="flex items-center space-x-3 md:space-x-4">
           <Layers className="h-8 w-8 text-white" />
           <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-200 to-gray-400 bg-clip-text text-transparent">
-            RuVercel
+            Relax Dev
           </h1>
         </div>
         <div className="flex items-center space-x-2 md:space-x-4">

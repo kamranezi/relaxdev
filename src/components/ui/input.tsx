@@ -2,8 +2,9 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// ИСПРАВЛЕНИЕ: Используем Omit, чтобы убрать конфликт со стандартным атрибутом prefix
 export interface InputProps
-  extends React.InputHTMLAttributes<HTMLInputElement> {
+  extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "prefix"> {
   prefix?: React.ReactNode
 }
 

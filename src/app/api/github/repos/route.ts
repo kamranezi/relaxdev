@@ -1,61 +1,50 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { Octokit } from '@octokit/rest';
-import { getServerSession } from "next-auth"; 
-import { authOptions } from "../../auth/[...nextauth]/route"; // <--- ВАЖНО: Импортируем authOptions, а не handler
+import { NextResponse } from 'next/server';
+import { getServerSession } from "next-auth";
+import { Octokit } from "@octokit/rest";
+import { authOptions } from "../../auth/[...nextauth]/route"; // <--- ВАЖНО: Импортируем authOptions
 
-// Инициализация клиента GitHub
-const octokit = new Octokit({
-  auth: process.env.GITHUB_ACCESS_TOKEN,
-});
+// Эта строка нужна, чтобы Next.js не кешировал ответ, 
+// так как список репозиториев может меняться
+export const dynamic = 'force-dynamic';
 
-export async function POST(request: NextRequest) {
+export async function GET() {
+  // 1. Получаем сессию (токен пользователя)
+  const session = await getServerSession(authOptions);
+
+  if (!session || !session.accessToken) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
+
   try {
-    // 1. ПОЛУЧАЕМ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
-    // ВАЖНО: Передаем authOptions
-    const session = await getServerSession(authOptions);
-    
-    // Если пользователь не вошел, используем 'anonymous'
-    const ownerLogin = session?.user?.name || 'anonymous';
-
-    const body = await request.json();
-    const { gitUrl, projectName, gitToken } = body; 
-
-    if (!gitUrl || !projectName) {
-      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
-    }
-
-    const safeName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
-    
-    // 2. ОТПРАВЛЯЕМ OWNER В GITHUB ACTIONS
-    await octokit.actions.createWorkflowDispatch({
-      owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
-      repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
-      workflow_id: 'universal-builder.yml',
-      ref: 'main',
-      inputs: {
-        gitUrl: gitUrl,
-        projectName: safeName,
-        gitToken: gitToken || '', 
-        owner: ownerLogin,        // <--- Передаем владельца!
-      },
+    // 2. Инициализируем GitHub клиент с токеном ПОЛЬЗОВАТЕЛЯ
+    // Это позволяет видеть приватные репозитории конкретного юзера
+    const octokit = new Octokit({
+      auth: session.accessToken,
     });
 
-    console.log(`[API] Triggered build for ${safeName} by ${ownerLogin}`);
-
-    return NextResponse.json({
-      id: `proj_${Date.now()}`,
-      name: projectName,
-      status: 'Сборка', 
-      repoUrl: gitUrl,
-      targetImage: `cr.yandex/.../${safeName}:latest`,
-      domain: `${safeName}.containers.yandexcloud.net`,
+    // 3. Запрашиваем репозитории (свои + доступные)
+    // sort: 'updated' — чтобы сверху были те, над которыми работали недавно
+    const { data } = await octokit.repos.listForAuthenticatedUser({
+      sort: 'updated',
+      direction: 'desc',
+      per_page: 100,
+      visibility: 'all',
     });
+
+    // 4. Оставляем только нужные поля для фронтенда
+    const repos = data.map((repo) => ({
+      id: repo.id,
+      name: repo.name,
+      full_name: repo.full_name, // например "kamranezi/my-project"
+      url: repo.clone_url,      // ссылка для клонирования
+      private: repo.private,    // true/false
+      updated_at: repo.updated_at,
+    }));
+
+    return NextResponse.json(repos);
 
   } catch (error: any) {
     console.error('GitHub API Error:', error);
-    return NextResponse.json(
-      { error: error.message || 'Failed to trigger build' }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
