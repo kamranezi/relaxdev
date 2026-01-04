@@ -7,57 +7,67 @@ import { ProjectCard } from '@/components/ProjectCard';
 import { AddProjectModal } from '@/components/AddProjectModal';
 import { LanguageToggle } from '@/components/LanguageToggle';
 import { Button } from '@/components/ui/button';
-import { Plus, Bell, Layers } from 'lucide-react';
+import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
   const [language, setLanguage] = useState<Language>('ru');
-  const [isMounted, setIsMounted] = useState(false); // Нужно для корректной работы с LocalStorage
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const t = getTranslation(language);
 
-  // 1. ЗАГРУЗКА: При открытии страницы пытаемся достать данные из памяти
-  useEffect(() => {
-    setIsMounted(true);
-    const savedProjects = localStorage.getItem('ruvercel-projects');
-    if (savedProjects) {
-      try {
-        setProjects(JSON.parse(savedProjects));
-      } catch (e) {
-        console.error('Ошибка чтения LocalStorage', e);
+  // Функция загрузки данных из нашего API (который ходит в Яндекс)
+  const fetchProjects = async () => {
+    try {
+      // setIsLoading(true); // Можно не включать лоадер при фоновом обновлении
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        // Сортируем: новые (по дате создания) сверху
+        const sortedData = Array.isArray(data) 
+          ? data.sort((a: any, b: any) => new Date(b.lastDeployed).getTime() - new Date(a.lastDeployed).getTime())
+          : [];
+        setProjects(sortedData);
       }
-    } else {
-      // Демо-данные, если память пуста
-      setProjects([
-        {
-          id: 'proj_1',
-          name: 'Demo Shop',
-          status: 'Активен',
-          repoUrl: 'https://github.com/vercel/next-learn',
-          lastDeployed: '10 минут назад',
-          targetImage: 'cr.yandex/demo',
-          domain: 'demo.ruvercel.app',
-        }
-      ]);
+    } catch (e) {
+      console.error('Ошибка загрузки проектов:', e);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // 1. ЗАГРУЗКА: При открытии страницы + авто-обновление каждые 10 сек
+  useEffect(() => {
+    fetchProjects();
+
+    const interval = setInterval(fetchProjects, 10000); // 10 секунд
+    return () => clearInterval(interval);
   }, []);
 
-  // 2. СОХРАНЕНИЕ: При любом изменении списка сохраняем его в память
-  useEffect(() => {
-    if (isMounted) {
-      localStorage.setItem('ruvercel-projects', JSON.stringify(projects));
-    }
-  }, [projects, isMounted]);
-
   const formatTimeAgo = (timeStr: string): string => {
-    if (timeStr.includes('назад') || timeStr.includes('ago')) return timeStr;
-    const minutesMatch = timeStr.match(/(\d+)\s*(minute|минут)/i);
-    if (minutesMatch) {
-      const n = parseInt(minutesMatch[1]);
-      return language === 'ru' ? t.timeAgo.minutesAgo(n) : `${n} ${n === 1 ? 'minute' : 'minutes'} ago`;
+    if (!timeStr) return '';
+    const date = new Date(timeStr);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return language === 'ru' ? 'Только что' : 'Just now';
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) {
+      return language === 'ru' 
+        ? t.timeAgo.minutesAgo(diffInMinutes) 
+        : `${diffInMinutes} min ago`;
     }
-    return timeStr;
+
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) {
+      return language === 'ru' 
+        ? `${diffInHours} ч. назад` 
+        : `${diffInHours} hours ago`;
+    }
+
+    return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US');
   };
 
   const handleDeploy = async (gitUrl: string, projectName: string, gitToken?: string) => {
@@ -72,26 +82,20 @@ export default function Home() {
 
       const newProject = await response.json();
       
+      // Добавляем проект в список "оптимистично", чтобы пользователь сразу увидел реакцию
+      // (Через 10 секунд он обновится реальными данными из Яндекса)
       const localizedProject: Project = {
         ...newProject,
         status: language === 'ru' ? 'Сборка' : 'Building',
-        lastDeployed: language === 'ru' ? 'Только что' : 'Just now',
+        lastDeployed: new Date().toISOString(),
       };
 
-      // Добавляем новый проект в начало списка
       setProjects((prev) => [localizedProject, ...prev]);
-      
-      console.log('Новый проект добавлен:', newProject);
     } catch (error) {
       console.error('Deploy error:', error);
       throw error;
     }
   };
-
-  // Пока не загрузились данные из браузера, не показываем контент (чтобы не прыгало)
-  if (!isMounted) {
-    return <div className="min-h-screen bg-[#0A0A0A]" />;
-  }
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-gray-300 font-sans">
@@ -113,9 +117,20 @@ export default function Home() {
 
       <main className="flex-1 p-4 md:p-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4">
-          <h2 className="text-2xl md:text-3xl font-bold text-white">
-            {t.projects}
-          </h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl md:text-3xl font-bold text-white">
+              {t.projects}
+            </h2>
+            {/* Кнопка ручного обновления */}
+            <button 
+              onClick={fetchProjects} 
+              className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+              title="Обновить список"
+            >
+              <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
+          
           <Button
             onClick={() => setIsModalOpen(true)}
             className="bg-white text-black hover:bg-gray-200 transition-colors w-full sm:w-auto"
@@ -125,14 +140,16 @@ export default function Home() {
           </Button>
         </div>
 
-        {projects.length === 0 ? (
+        {projects.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="h-16 w-16 text-gray-600 mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">
-              {language === 'ru' ? 'Нет проектов' : 'No projects'}
+              {language === 'ru' ? 'Нет активных проектов' : 'No active projects'}
             </h3>
             <p className="text-gray-500 mb-6">
-              {language === 'ru' ? 'Начните с добавления проекта' : 'Start by adding your first project'}
+              {language === 'ru' 
+                ? 'Ваш список контейнеров в Яндекс Облаке пуст.' 
+                : 'Your Yandex Cloud container list is empty.'}
             </p>
             <Button onClick={() => setIsModalOpen(true)} className="bg-white text-black hover:bg-gray-200">
               <Plus className="h-4 w-4 mr-2" />

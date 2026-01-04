@@ -1,0 +1,58 @@
+name: Deploy Dashboard to Yandex
+
+on:
+  push:
+    branches: [ "main" ] # Срабатывает при пуше в главную ветку
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      # 1. Логин в Docker Яндекса
+      - name: Login to Yandex CR
+        uses: docker/login-action@v3
+        with:
+          registry: cr.yandex
+          username: json_key
+          password: ${{ secrets.YC_SA_KEY_JSON }}
+
+      # 2. Установка YC CLI (Утилита управления)
+      - name: Install YC CLI
+        run: |
+          curl https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          sudo ln -s /home/runner/yandex-cloud/bin/yc /usr/bin/yc
+
+      # 3. Настройка профиля YC
+      - name: Authenticate YC CLI
+        run: |
+          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
+          yc config profile create sa-profile
+          yc config set service-account-key key.json
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+
+      # 4. Сборка и отправка образа (Версию делаем по хэшу коммита)
+      - name: Build and Push
+        run: |
+          IMAGE_URI="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/ruvercel-dashboard:${{ github.sha }}"
+          
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
+          
+          # Сохраняем имя образа для следующего шага
+          echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+
+      # 5. Обновление контейнера в Serverless
+      - name: Deploy Revision
+        run: |
+          # ВАЖНО: Мы передаем переменные окружения, чтобы они не слетели при обновлении
+          yc serverless container revision deploy \
+            --container-name ruvercel-frontend \
+            --folder-id ${{ secrets.YC_FOLDER_ID }} \
+            --image ${{ env.IMAGE_URI }} \
+            --service-account-id ${{ secrets.YC_SA_ID }} \
+            --cores 1 \
+            --memory 512M \
+            --execution-timeout 30s \
+            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder
