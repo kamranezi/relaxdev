@@ -21,16 +21,35 @@ export default function Home() {
 
   // Функция загрузки данных из нашего API (который ходит в Яндекс)
   const fetchProjects = async () => {
+    setIsLoading(true);
     try {
-      setIsLoading(true);
       const res = await fetch('/api/projects');
       if (res.ok) {
-        const data = await res.json();
-        // Сортируем: новые (по дате создания) сверху
-        const sortedData = Array.isArray(data) 
-          ? data.sort((a: any, b: any) => new Date(b.lastDeployed).getTime() - new Date(a.lastDeployed).getTime())
-          : [];
-        setProjects(sortedData);
+        const apiProjects = await res.json();
+        const validApiProjects = Array.isArray(apiProjects) ? apiProjects : [];
+
+        setProjects(currentProjects => {
+          // Находим проекты со статусом "Сборка" на клиенте
+          const buildingProjects = currentProjects.filter(
+            p => p.status === t.status.building
+          );
+
+          // Создаем набор ID проектов с сервера для быстрой проверки
+          const apiProjectIds = new Set(validApiProjects.map(p => p.id));
+
+          // Убираем из "собирающихся" те, что уже пришли с сервера
+          const uniqueBuildingProjects = buildingProjects.filter(
+            p => !apiProjectIds.has(p.id)
+          );
+
+          // Объединяем проекты с сервера и уникальные проекты в статусе сборки
+          const combinedProjects = [...validApiProjects, ...uniqueBuildingProjects];
+
+          // Сортируем и обновляем стейт
+          return combinedProjects.sort((a: any, b: any) => 
+            new Date(b.lastDeployed).getTime() - new Date(a.lastDeployed).getTime()
+          );
+        });
       }
     } catch (e) {
       console.error('Ошибка загрузки проектов:', e);
@@ -42,7 +61,6 @@ export default function Home() {
   // 1. ЗАГРУЗКА: При открытии страницы + авто-обновление каждые 10 сек
   useEffect(() => {
     fetchProjects();
-
     const interval = setInterval(fetchProjects, 10000); // 10 секунд
     return () => clearInterval(interval);
   }, []);
@@ -53,20 +71,16 @@ export default function Home() {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return language === 'ru' ? 'Только что' : 'Just now';
+    if (diffInSeconds < 60) return t.timeAgo.justNow;
     
     const diffInMinutes = Math.floor(diffInSeconds / 60);
     if (diffInMinutes < 60) {
-      return language === 'ru' 
-        ? t.timeAgo.minutesAgo(diffInMinutes) 
-        : `${diffInMinutes} min ago`;
+      return t.timeAgo.minutesAgo(diffInMinutes);
     }
 
     const diffInHours = Math.floor(diffInMinutes / 60);
     if (diffInHours < 24) {
-      return language === 'ru' 
-        ? `${diffInHours} ч. назад` 
-        : `${diffInHours} hours ago`;
+      return t.timeAgo.hoursAgo(diffInHours);
     }
 
     return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US');
@@ -87,11 +101,13 @@ export default function Home() {
       // Добавляем проект в список "оптимистично"
       const localizedProject: Project = {
         ...newProject,
-        status: language === 'ru' ? 'Сборка' : 'Building',
+        status: t.status.building,
         lastDeployed: new Date().toISOString(),
       };
 
       setProjects((prev) => [localizedProject, ...prev]);
+      // Запускаем обновление, чтобы подхватить статус, как только он появится
+      setTimeout(fetchProjects, 3000); 
     } catch (error) {
       console.error('Deploy error:', error);
       throw error;
@@ -132,12 +148,12 @@ export default function Home() {
                 onClick={() => signOut()} 
                 className="text-xs text-gray-400 hover:text-white px-2"
               >
-                {language === 'ru' ? 'Выйти' : 'Sign Out'}
+                {t.signout}
               </Button>
             </div>
           ) : (
             <Button onClick={() => signIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
-              {language === 'ru' ? 'Войти через GitHub' : 'Sign In with GitHub'}
+              {t.signin}
             </Button>
           )}
 
@@ -174,12 +190,10 @@ export default function Home() {
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="h-16 w-16 text-gray-600 mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">
-              {language === 'ru' ? 'Нет активных проектов' : 'No active projects'}
+              {t.noProjectsTitle}
             </h3>
             <p className="text-gray-500 mb-6">
-              {language === 'ru' 
-                ? 'Ваш список контейнеров в Яндекс Облаке пуст.' 
-                : 'Your Yandex Cloud container list is empty.'}
+              {t.noProjectsDescription}
             </p>
             <Button onClick={() => setIsModalOpen(true)} className="bg-white text-black hover:bg-gray-200">
               <Plus className="h-4 w-4 mr-2" />
