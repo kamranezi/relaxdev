@@ -22,7 +22,7 @@ export default function Home() {
   // Функция загрузки данных из нашего API (который ходит в Яндекс)
   const fetchProjects = async () => {
     try {
-      // setIsLoading(true); // Можно не включать лоадер при фоновом обновлении
+      setIsLoading(true);
       const res = await fetch('/api/projects');
       if (res.ok) {
         const data = await res.json();
@@ -153,7 +153,8 @@ export default function Home() {
             {/* Кнопка ручного обновления */}
             <button 
               onClick={fetchProjects} 
-              className="p-2 hover:bg-gray-800 rounded-full transition-colors"
+              disabled={isLoading} 
+              className="p-2 hover:bg-gray-800 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Обновить список"
             >
               <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
