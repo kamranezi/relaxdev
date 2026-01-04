@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useSession, signIn, signOut } from "next-auth/react"; // <--- Импорт Auth
 import { Project } from '@/types';
 import { getTranslation, Language } from '@/lib/i18n';
 import { ProjectCard } from '@/components/ProjectCard';
@@ -10,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
+  const { data: session } = useSession(); // <--- Получаем данные сессии
   const [language, setLanguage] = useState<Language>('ru');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -82,8 +84,7 @@ export default function Home() {
 
       const newProject = await response.json();
       
-      // Добавляем проект в список "оптимистично", чтобы пользователь сразу увидел реакцию
-      // (Через 10 секунд он обновится реальными данными из Яндекса)
+      // Добавляем проект в список "оптимистично"
       const localizedProject: Project = {
         ...newProject,
         status: language === 'ru' ? 'Сборка' : 'Building',
@@ -111,7 +112,35 @@ export default function Home() {
           <button className="text-gray-400 hover:text-white transition-colors p-2">
             <Bell className="h-5 w-5 md:h-6 md:w-6" />
           </button>
-          <div className="h-8 w-8 md:h-10 md:w-10 rounded-full bg-gradient-to-br from-cyan-500 to-blue-500"></div>
+          
+          {/* СЕКЦИЯ АВТОРИЗАЦИИ */}
+          {session ? (
+            <div className="flex items-center gap-3 pl-2 border-l border-gray-800">
+              <div className="text-right hidden sm:block">
+                <div className="text-sm text-white font-medium">{session.user?.name}</div>
+                <div className="text-xs text-gray-500">{session.user?.email}</div>
+              </div>
+              {session.user?.image && (
+                <img 
+                  src={session.user.image} 
+                  alt="Avatar" 
+                  className="h-8 w-8 md:h-10 md:w-10 rounded-full border border-gray-700"
+                />
+              )}
+              <Button 
+                variant="ghost" 
+                onClick={() => signOut()} 
+                className="text-xs text-gray-400 hover:text-white px-2"
+              >
+                {language === 'ru' ? 'Выйти' : 'Sign Out'}
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => signIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
+              {language === 'ru' ? 'Войти через GitHub' : 'Sign In with GitHub'}
+            </Button>
+          )}
+
         </div>
       </header>
 
