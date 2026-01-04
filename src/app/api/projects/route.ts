@@ -1,8 +1,9 @@
-// src/app/api/projects/route.ts
 import { NextResponse } from 'next/server';
 import { listContainers } from '@/lib/yandex';
+import { getServerSession } from "next-auth";
+import { authOptions } from "../auth/[...nextauth]/route"; // <--- ИМПОРТИРУЕМ ОПЦИИ
 
-export const dynamic = 'force-dynamic'; // Не кешировать!
+export const dynamic = 'force-dynamic';
 
 export async function GET() {
   try {
@@ -11,23 +12,32 @@ export async function GET() {
       return NextResponse.json({ error: 'YC_FOLDER_ID not set' }, { status: 500 });
     }
 
+    const session = await getServerSession(authOptions);
+    const currentUser = session?.user?.name;
+
+    // Если нужна строгая проверка авторизации:
+    // if (!currentUser) return NextResponse.json([]);
+
     const data = await listContainers(folderId);
     
-    // Превращаем формат Яндекса в наш формат Project
-    const projects = (data.containers || []).map((c: any) => ({
-      id: c.id,
-      name: c.name,
-      status: c.status === 'ACTIVE' ? 'Активен' : 'Ошибка', // Упрощаем
-      repoUrl: '', // Яндекс не знает про GitHub URL, увы
-      lastDeployed: c.createdAt,
-      targetImage: '',
-      domain: c.url, // ВОТ ОНА, ВАША ССЫЛКА!
-    }));
+    const myProjects = (data.containers || [])
+      .filter((c: any) => {
+         if (!c.labels) return false;
+         // Проверяем, совпадает ли owner
+         return c.labels.owner === currentUser;
+      })
+      .map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        status: c.status === 'ACTIVE' ? 'Активен' : 'Ошибка',
+        repoUrl: '',
+        lastDeployed: c.createdAt,
+        targetImage: '',
+        domain: c.url,
+      }));
 
-    // Фильтруем сам Дашборд из списка (чтобы не показывать его самого)
-    const filteredProjects = projects.filter((p: any) => !p.name.includes('ruvercel-frontend'));
+    return NextResponse.json(myProjects);
 
-    return NextResponse.json(filteredProjects);
   } catch (error: any) {
     console.error('API Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

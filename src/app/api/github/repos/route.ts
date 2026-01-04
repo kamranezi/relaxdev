@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from '@octokit/rest';
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route"; // <--- ИМПОРТИРУЕМ ОПЦИИ
+import { getServerSession } from "next-auth"; 
+import { authOptions } from "../../auth/[...nextauth]/route"; // <--- ВАЖНО: Импортируем authOptions, а не handler
 
+// Инициализация клиента GitHub
 const octokit = new Octokit({
   auth: process.env.GITHUB_ACCESS_TOKEN,
 });
 
 export async function POST(request: NextRequest) {
   try {
-    // Передаем authOptions в getServerSession
+    // 1. ПОЛУЧАЕМ ТЕКУЩЕГО ПОЛЬЗОВАТЕЛЯ
+    // ВАЖНО: Передаем authOptions
     const session = await getServerSession(authOptions);
     
+    // Если пользователь не вошел, используем 'anonymous'
     const ownerLogin = session?.user?.name || 'anonymous';
 
     const body = await request.json();
-    const { gitUrl, projectName, gitToken } = body;
+    const { gitUrl, projectName, gitToken } = body; 
 
     if (!gitUrl || !projectName) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -23,6 +26,7 @@ export async function POST(request: NextRequest) {
 
     const safeName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
     
+    // 2. ОТПРАВЛЯЕМ OWNER В GITHUB ACTIONS
     await octokit.actions.createWorkflowDispatch({
       owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
       repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
@@ -31,8 +35,8 @@ export async function POST(request: NextRequest) {
       inputs: {
         gitUrl: gitUrl,
         projectName: safeName,
-        gitToken: gitToken || '',
-        owner: ownerLogin,
+        gitToken: gitToken || '', 
+        owner: ownerLogin,        // <--- Передаем владельца!
       },
     });
 
