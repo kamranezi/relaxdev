@@ -6,17 +6,17 @@ export function middleware(request: NextRequest) {
 
   // Проверяем, если заход с www
   if (host?.startsWith('www.')) {
-    const newUrl = new URL(request.url);
-    newUrl.host = 'relaxdev.ru'; // Убираем www
-    newUrl.protocol = 'https';
+    // Создаем новый URL вручную, чтобы избежать добавления порта
+    const newUrl = `https://relaxdev.ru${request.nextUrl.pathname}${request.nextUrl.search}`;
     
+    // Выполняем постоянный редирект
     return NextResponse.redirect(newUrl, 301);
   }
 
   return NextResponse.next();
 }
 
-// Применяем ко всем путям
+// Применяем middleware ко всем путям, кроме служебных файлов Next.js
 export const config = {
-  matcher: '/:path*',
+  matcher: '/((?!api|_next/static|_next/image|favicon.ico).*)',
 };
