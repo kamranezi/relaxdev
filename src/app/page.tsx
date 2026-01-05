@@ -52,8 +52,6 @@ export default function Home() {
 
   useEffect(() => {
     fetchProjects();
-    const interval = setInterval(fetchProjects, 10000); 
-    return () => clearInterval(interval);
   }, [fetchProjects]);
 
   const formatTimeAgo = (timeStr: string): string => {

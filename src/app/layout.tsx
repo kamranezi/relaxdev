@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Relax Dev Team" }],
   creator: "Relax Dev",
   publisher: "Relax Dev",
-  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "https://ruvercel.app"),
+  metadataBase: new URL("https://relaxdev.ru"),
   openGraph: {
     type: "website",
     locale: "ru_RU",
@@ -45,8 +45,7 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: [
-      { url: "/favicon-16x16.png", sizes: "16x16", type: "image/png" },
-      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-96x96.png", sizes: "96x96", type: "image/png" },
       { url: "/favicon.ico", sizes: "any" },
     ],
     apple: [
