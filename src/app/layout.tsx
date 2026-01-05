@@ -13,6 +13,8 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+const siteUrl = "https://relaxdev.ru";
+
 export const metadata: Metadata = {
   title: "Relax Dev - Российская платформа для деплоя",
   description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud. Деплой Next.js, React и других приложений за секунды.",
@@ -20,7 +22,7 @@ export const metadata: Metadata = {
   authors: [{ name: "Relax Dev Team" }],
   creator: "Relax Dev",
   publisher: "Relax Dev",
-  metadataBase: new URL("https://relaxdev.ru"),
+  metadataBase: new URL(siteUrl),
   openGraph: {
     type: "website",
     locale: "ru_RU",
@@ -30,7 +32,7 @@ export const metadata: Metadata = {
     siteName: "Relax Dev",
     images: [
       {
-        url: "/bg.webp",
+        url: `${siteUrl}/bg.webp`,
         width: 1200,
         height: 630,
         alt: "Relax Dev Dashboard",
@@ -41,7 +43,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Relax Dev - Российская платформа для деплоя",
     description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud",
-    images: ["/bg.webp"],
+    images: [`${siteUrl}/bg.webp`],
   },
   icons: {
     icon: [
@@ -67,10 +69,6 @@ export default function RootLayout({
   return (
     <html lang="ru">
       <head>
-        <link rel="icon" href="/favicon.ico" sizes="any" />
-        <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
-        <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
-        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
         <meta name="theme-color" content="#0A0A0A" />
       </head>
       <body
