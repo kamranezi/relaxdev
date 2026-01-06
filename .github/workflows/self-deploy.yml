@@ -35,11 +35,12 @@ jobs:
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
           rm -f key.json
 
-      # 4. Сборка и отправка образа
+      # 4. Сборка и отправка образа (ИСПРАВЛЕНО)
       - name: Build and Push
         env:
-          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
-          NEXT_PUBLIC_API_URL: ${{ secrets.NEXTAUTH_URL }}
+          # Устанавливаем правильный URL для сборки
+          NEXTAUTH_URL: https://relaxdev.ru
+          NEXT_PUBLIC_API_URL: https://relaxdev.ru
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
@@ -81,13 +82,10 @@ jobs:
       # 5. Обновление контейнера (ИСПРАВЛЕНО)
       - name: Deploy Revision
         env:
-          # Передаем многострочный ключ в переменную окружения для этого шага
           FIREBASE_PRIVATE_KEY_SECRET: ${{ secrets.FIREBASE_PRIVATE_KEY }}
         run: |
           echo "🚀 Deploying new revision..."
           
-          # Каждая переменная передается через отдельный флаг --environment,
-          # что корректно обрабатывает многострочные значения
           yc serverless container revision deploy \
             --container-name ruvercel-frontend \
             --folder-id ${{ secrets.YC_FOLDER_ID }} \
@@ -110,7 +108,8 @@ jobs:
             --environment GITHUB_ID=${{ secrets.GH_OAUTH_ID }} \
             --environment GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }} \
             --environment NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }} \
-            --environment NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }} \
+            # Устанавливаем правильный URL для runtime
+            --environment NEXTAUTH_URL=https://relaxdev.ru \
             --environment NODE_ENV=production
           
           echo "✅ Deployment complete!"
