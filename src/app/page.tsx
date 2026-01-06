@@ -47,6 +47,14 @@ export default function Home() {
   const handleSignOut = async () => {
     await firebaseSignOut(auth);
   };
+  
+  const handleAddProjectClick = () => {
+    if (user) {
+      setIsModalOpen(true);
+    } else {
+      handleSignIn('github');
+    }
+  };
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
@@ -200,7 +208,7 @@ export default function Home() {
           </div>
           
           <Button
-            onClick={() => setIsModalOpen(true)}
+            onClick={handleAddProjectClick}
             className="bg-white text-black hover:bg-gray-200 transition-colors w-full sm:w-auto"
           >
             <Plus className="h-4 w-4 mr-2" />
@@ -217,7 +225,7 @@ export default function Home() {
             <p className="text-gray-500 mb-6">
               {t.noProjectsDescription}
             </p>
-            <Button onClick={() => setIsModalOpen(true)} className="bg-white text-black hover:bg-gray-200">
+            <Button onClick={handleAddProjectClick} className="bg-white text-black hover:bg-gray-200">
               <Plus className="h-4 w-4 mr-2" />
               {t.addProject}
             </Button>

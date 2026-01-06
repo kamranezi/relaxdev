@@ -16,8 +16,8 @@ const geistMono = Geist_Mono({
 const siteUrl = "https://relaxdev.ru";
 
 export const metadata: Metadata = {
-  title: "Relax Dev - Российская платформа для деплоя",
-  description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud. Деплой Next.js, React и других приложений за секунды.",
+  title: "Relax Dev - Современная платформа для запуска проектов с GitHub",
+  description: "Relax Dev - Простой и удобный сервис для развертывания любого бота, сайта, приложения на серверах Yandex",
   keywords: ["Relax Dev", "деплой", "PaaS", "Yandex Cloud", "Next.js", "React", "веб-разработка"],
   authors: [{ name: "Relax Dev Team" }],
   creator: "Relax Dev",
@@ -27,8 +27,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ru_RU",
     url: "/",
-    title: "Relax Dev - Российская платформа для деплоя",
-    description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud",
+    title: "Relax Dev - Современная платформа для запуска проектов с GitHub",
+    description: "Relax Dev - Простой и удобный сервис для развертывания любого бота, сайта, приложения на серверах Yandex",
     siteName: "Relax Dev",
     images: [
       {
