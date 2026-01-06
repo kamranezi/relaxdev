@@ -1,29 +1,29 @@
 import { NextResponse } from 'next/server';
-import { getServerSession } from "next-auth";
+import { adminAuth, db } from '@/lib/firebase-admin';
 import { Octokit } from "@octokit/rest";
-import { authOptions } from "../../auth/[...nextauth]/route"; // <--- ВАЖНО: Импортируем authOptions
 
-// Эта строка нужна, чтобы Next.js не кешировал ответ, 
-// так как список репозиториев может меняться
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
-  // 1. Получаем сессию (токен пользователя)
-  const session = await getServerSession(authOptions);
-
-  if (!session || !session.accessToken) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  }
-
+export async function GET(req: Request) {
   try {
-    // 2. Инициализируем GitHub клиент с токеном ПОЛЬЗОВАТЕЛЯ
-    // Это позволяет видеть приватные репозитории конкретного юзера
-    const octokit = new Octokit({
-      auth: session.accessToken,
-    });
+    const idToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!idToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
 
-    // 3. Запрашиваем репозитории (свои + доступные)
-    // sort: 'updated' — чтобы сверху были те, над которыми работали недавно
+    const userRef = db.ref(`users/${uid}`);
+    const snapshot = await userRef.once('value');
+    const userData = snapshot.val();
+
+    if (!userData || !userData.githubAccessToken) {
+      return NextResponse.json({ error: 'GitHub token not found' }, { status: 403 });
+    }
+
+    const octokit = new Octokit({ auth: userData.githubAccessToken });
+
     const { data } = await octokit.repos.listForAuthenticatedUser({
       sort: 'updated',
       direction: 'desc',
@@ -31,13 +31,12 @@ export async function GET() {
       visibility: 'all',
     });
 
-    // 4. Оставляем только нужные поля для фронтенда
     const repos = data.map((repo) => ({
       id: repo.id,
       name: repo.name,
-      full_name: repo.full_name, // например "kamranezi/my-project"
-      url: repo.clone_url,      // ссылка для клонирования
-      private: repo.private,    // true/false
+      full_name: repo.full_name, 
+      url: repo.clone_url,      
+      private: repo.private,    
       updated_at: repo.updated_at,
     }));
 

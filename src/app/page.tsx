@@ -2,7 +2,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { useSession, signIn, signOut } from "next-auth/react";
+import { useAuth } from '@/components/AuthProvider';
+import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut as firebaseSignOut, OAuthProvider } from 'firebase/auth';
+import { auth } from '@/lib/firebase-client';
 import { Project } from '@/types';
 import { getTranslation, Language } from '@/lib/i18n';
 import { ProjectCard } from '@/components/ProjectCard';
@@ -12,13 +14,39 @@ import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
-  const { data: session } = useSession();
+  const { user, loading: authLoading } = useAuth();
   const [language, setLanguage] = useState<Language>('ru');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const t = getTranslation(language);
+
+  const handleSignIn = async (provider: 'google' | 'github') => {
+    const authProvider = provider === 'google' ? new GoogleAuthProvider() : new GithubAuthProvider();
+    try {
+      const result = await signInWithPopup(auth, authProvider);
+      const idToken = await result.user.getIdToken();
+      
+      let accessToken: string | undefined;
+      if (provider === 'github') {
+        const credential = GithubAuthProvider.credentialFromResult(result);
+        accessToken = credential?.accessToken;
+      }
+
+      await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, provider, accessToken }),
+      });
+    } catch (error) {
+      console.error("Authentication error:", error);
+    }
+  };
+
+  const handleSignOut = async () => {
+    await firebaseSignOut(auth);
+  };
 
   const fetchProjects = useCallback(async () => {
     setIsLoading(true);
@@ -51,8 +79,10 @@ export default function Home() {
   }, [t.status.building]);
 
   useEffect(() => {
-    fetchProjects();
-  }, [fetchProjects]);
+    if (user) {
+        fetchProjects();
+    }
+  }, [user, fetchProjects]);
 
   const formatTimeAgo = (timeStr: string): string => {
     if (!timeStr) return '';
@@ -116,15 +146,15 @@ export default function Home() {
             <Bell className="h-5 w-5 md:h-6 md:w-6" />
           </button>
           
-          {session ? (
+          {user ? (
             <div className="flex items-center gap-3 pl-2 border-l border-gray-800">
               <div className="text-right hidden sm:block">
-                <div className="text-sm text-white font-medium">{session.user?.name}</div>
-                <div className="text-xs text-gray-500">{session.user?.email}</div>
+                <div className="text-sm text-white font-medium">{user.displayName}</div>
+                <div className="text-xs text-gray-500">{user.email}</div>
               </div>
-              {session.user?.image && (
+              {user.photoURL && (
                 <Image 
-                  src={session.user.image} 
+                  src={user.photoURL} 
                   alt="Avatar" 
                   width={40}
                   height={40}
@@ -133,7 +163,7 @@ export default function Home() {
               )}
               <Button 
                 variant="ghost" 
-                onClick={() => signOut()} 
+                onClick={handleSignOut} 
                 className="text-xs text-gray-400 hover:text-white px-2"
               >
                 {t.signout}
@@ -141,10 +171,10 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex items-center space-x-2">
-              <Button onClick={() => signIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
+              <Button onClick={() => handleSignIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
                 {t.signin}
               </Button>
-              <Button onClick={() => signIn('google')} className="bg-red-500 text-white hover:bg-red-600 ml-2">
+              <Button onClick={() => handleSignIn('google')} className="bg-red-500 text-white hover:bg-red-600 ml-2">
                 Sign in with Google
               </Button>
             </div>
@@ -213,6 +243,7 @@ export default function Home() {
         onClose={() => setIsModalOpen(false)}
         onDeploy={handleDeploy}
         language={language}
+        user={user} 
       />
     </div>
   );

@@ -5,17 +5,17 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Github, Lock, Search, Loader2, X, Plus } from 'lucide-react';
-import { useSession } from 'next-auth/react';
 import { ProjectEnvVar } from '@/types';
+import { User } from 'firebase/auth';
 
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
   onDeploy: (gitUrl: string, projectName: string, gitToken?: string, envVars?: ProjectEnvVar[]) => Promise<void>;
   language: 'ru' | 'en';
+  user: User | null;
 }
 
-// Тип для объекта репозитория
 interface Repo {
   id: number;
   name: string;
@@ -24,12 +24,10 @@ interface Repo {
   private: boolean;
 }
 
-export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProjectModalProps) {
-  const { data: session } = useSession();
+export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: AddProjectModalProps) {
   const [gitUrl, setGitUrl] = useState('');
   const [projectName, setProjectName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  
   const [repos, setRepos] = useState<Repo[]>([]);
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,7 +37,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
   const [newEnvValue, setNewEnvValue] = useState('');
 
   useEffect(() => {
-    if (isOpen && session) {
+    if (isOpen && user) {
       loadRepos();
     }
     if (isOpen) {
@@ -51,14 +49,21 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
         setNewEnvKey('');
         setNewEnvValue('');
     }
-  }, [isOpen, session]);
+  }, [isOpen, user]);
 
   const loadRepos = async () => {
+    if (!user) return;
     setIsLoadingRepos(true);
     try {
-      const res = await fetch('/api/github/repos');
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/github/repos', {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
       if (res.ok) {
         setRepos(await res.json());
+      } else {
+        setRepos([]);
+        console.error('Failed to load repos', await res.text());
       }
     } catch (e) {
       console.error(e);
@@ -95,7 +100,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
     if (!gitUrl || !projectName) return;
     setIsLoading(true);
     try {
-      // Токен пока не используется, передаем пустую строку
       await onDeploy(gitUrl, projectName, '', envVars.length > 0 ? envVars : undefined);
       onClose();
     } catch (error) {
@@ -118,7 +122,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
         </DialogHeader>
 
         <div className="space-y-4">
-            {!session ? (
+            {!user ? (
                  <div className="text-center py-4 text-gray-400">
                     <p>Войдите через GitHub, чтобы видеть список репозиториев.</p>
                  </div>
@@ -155,7 +159,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="bg-black/50 border-gray-700"
-                                prefix={<Search className="w-4 h-4 text-gray-500" />}
+                                
                             />
                             
                             <div className="h-[200px] overflow-y-auto border border-gray-800 rounded-md p-2 space-y-1 custom-scrollbar">
