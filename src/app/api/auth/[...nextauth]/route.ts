@@ -1,6 +1,7 @@
 import NextAuth, { AuthOptions, Session } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import GithubProvider from "next-auth/providers/github";
+import GoogleProvider from "next-auth/providers/google";
 
 // 1. Экспортируем настройки (authOptions) отдельно
 export const authOptions: AuthOptions = {
@@ -13,6 +14,10 @@ export const authOptions: AuthOptions = {
           scope: 'read:user repo', 
         },
       },
+    }),
+    GoogleProvider({
+      clientId: process.env.GOOGLE_CLIENT_ID!,
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
   callbacks: {
