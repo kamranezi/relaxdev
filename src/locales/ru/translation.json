@@ -1,0 +1,19 @@
+{
+  "projects": "Проекты",
+  "addProject": "Добавить проект",
+  "importProject": "Импортировать",
+  "deploy": "Задеплоить",
+  "githubUrl": "URL GitHub репозитория",
+  "projectName": "Имя проекта",
+  "lastDeployed": "Последний деплой",
+  "status": {
+    "active": "Активен",
+    "building": "Сборка",
+    "error": "Ошибка"
+  },
+  "noProjectsTitle": "У вас пока нет проектов",
+  "noProjectsDescription": "Начните с импорта существующего репозитория из GitHub.",
+  "overview": "Обзор",
+  "envVars": "Переменные",
+  "logs": "Логи"
+}

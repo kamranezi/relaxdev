@@ -1,0 +1,19 @@
+{
+  "projects": "Projects",
+  "addProject": "Add Project",
+  "importProject": "Import",
+  "deploy": "Deploy",
+  "githubUrl": "GitHub Repository URL",
+  "projectName": "Project Name",
+  "lastDeployed": "Last Deployed",
+  "status": {
+    "active": "Active",
+    "building": "Building",
+    "error": "Error"
+  },
+  "noProjectsTitle": "You have no projects yet",
+  "noProjectsDescription": "Get started by importing an existing repository from GitHub.",
+  "overview": "Overview",
+  "envVars": "Environment Variables",
+  "logs": "Logs"
+}

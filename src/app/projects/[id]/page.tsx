@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Project, ProjectEnvVar } from '@/types';
+import { Project } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
@@ -58,13 +58,7 @@ export default function ProjectDetailPage() {
   const t = getTranslation(language);
   const projectId = params.id as string;
 
-  useEffect(() => {
-    if (projectId && session) {
-      fetchProject();
-    }
-  }, [projectId, session]);
-
-  const fetchProject = async () => {
+  const fetchProject = useCallback(async () => {
     setIsLoading(true);
     try {
       const res = await fetch(`/api/projects/${projectId}`);
@@ -79,7 +73,13 @@ export default function ProjectDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [projectId, router]);
+
+  useEffect(() => {
+    if (projectId && session) {
+      fetchProject();
+    }
+  }, [projectId, session, fetchProject]);
 
   const handleRedeploy = async () => {
     if (!project) return;
@@ -305,32 +305,32 @@ export default function ProjectDetailPage() {
 
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="bg-black/50">
-              <TabsTrigger value="overview">{language === 'ru' ? 'Обзор' : 'Overview'}</TabsTrigger>
-              <TabsTrigger value="env">{language === 'ru' ? 'Переменные окружения' : 'Environment Variables'}</TabsTrigger>
-              <TabsTrigger value="logs">{language === 'ru' ? 'Логи' : 'Logs'}</TabsTrigger>
+              <TabsTrigger value="overview">{t.overview}</TabsTrigger>
+              <TabsTrigger value="env">{t.envVars}</TabsTrigger>
+              <TabsTrigger value="logs">{t.logs}</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-6">
               <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{language === 'ru' ? 'Владелец' : 'Owner'}</div>
+                    <div className="text-sm text-gray-400 mb-1">{t.owner}</div>
                     <div className="text-white">{project.owner}</div>
                   </div>
                   <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{language === 'ru' ? 'Последний деплой' : 'Last Deployed'}</div>
+                    <div className="text-sm text-gray-400 mb-1">{t.lastDeployed}</div>
                     <div className="text-white">
                       {new Date(project.lastDeployed).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
                     </div>
                   </div>
                   <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{language === 'ru' ? 'Создан' : 'Created'}</div>
+                    <div className="text-sm text-gray-400 mb-1">{t.created}</div>
                     <div className="text-white">
                       {new Date(project.createdAt).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
                     </div>
                   </div>
                   <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{language === 'ru' ? 'Домен' : 'Domain'}</div>
+                    <div className="text-sm text-gray-400 mb-1">{t.domain}</div>
                     <div className="text-white font-mono text-sm">{project.domain}</div>
                   </div>
                 </div>
@@ -344,7 +344,7 @@ export default function ProjectDetailPage() {
                         {project.buildErrors && project.buildErrors.length > 0 && (
                           <div>
                             <div className="text-sm font-medium text-yellow-400 mb-1">
-                              {language === 'ru' ? 'Ошибки сборки:' : 'Build Errors:'}
+                              {t.buildErrors}
                             </div>
                             <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
                               {project.buildErrors.map((error, i) => (
@@ -356,7 +356,7 @@ export default function ProjectDetailPage() {
                         {project.missingEnvVars && project.missingEnvVars.length > 0 && (
                           <div>
                             <div className="text-sm font-medium text-yellow-400 mb-1">
-                              {language === 'ru' ? 'Отсутствующие переменные окружения:' : 'Missing Environment Variables:'}
+                              {t.missingEnvVars}
                             </div>
                             <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
                               {project.missingEnvVars.map((varName, i) => (
@@ -376,13 +376,13 @@ export default function ProjectDetailPage() {
               <div className="space-y-4">
                 <div className="bg-black/30 rounded-lg p-4">
                   <div className="text-sm font-medium text-gray-300 mb-3">
-                    {language === 'ru' ? 'Добавить переменную окружения' : 'Add Environment Variable'}
+                    {t.addEnvVar}
                   </div>
                   <div className="flex gap-2">
                     <Input
                       value={newEnvKey}
                       onChange={(e) => setNewEnvKey(e.target.value)}
-                      placeholder={language === 'ru' ? 'KEY' : 'KEY'}
+                      placeholder="KEY"
                       className="bg-black/50 border-gray-700"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
@@ -393,7 +393,7 @@ export default function ProjectDetailPage() {
                     <Input
                       value={newEnvValue}
                       onChange={(e) => setNewEnvValue(e.target.value)}
-                      placeholder={language === 'ru' ? 'VALUE' : 'VALUE'}
+                      placeholder="VALUE"
                       className="bg-black/50 border-gray-700"
                       type="password"
                       onKeyDown={(e) => {
@@ -419,7 +419,7 @@ export default function ProjectDetailPage() {
                 <div className="space-y-2">
                   {(project.envVars || []).length === 0 ? (
                     <div className="text-center py-8 text-gray-500">
-                      {language === 'ru' ? 'Нет переменных окружения' : 'No environment variables'}
+                      {t.noEnvVars}
                     </div>
                   ) : (
                     (project.envVars || []).map((envVar, index) => (
@@ -461,7 +461,7 @@ export default function ProjectDetailPage() {
             <TabsContent value="logs" className="mt-6">
               <div className="bg-black/30 rounded-lg p-4">
                 <div className="font-mono text-xs text-gray-300 whitespace-pre-wrap">
-                  {project.deploymentLogs || (language === 'ru' ? 'Логи отсутствуют' : 'No logs available')}
+                  {project.deploymentLogs || t.noLogs}
                 </div>
               </div>
             </TabsContent>
@@ -471,4 +471,3 @@ export default function ProjectDetailPage() {
     </div>
   );
 }
-

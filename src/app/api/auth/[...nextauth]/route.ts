@@ -27,7 +27,7 @@ export const authOptions: AuthOptions = {
         token.accessToken = account.access_token;
         
         // Получаем login из profile (для GitHub) или из email
-        const profileAny = profile as any;
+        const profileAny = profile as { login?: string; username?: string };
         const userLogin = profileAny?.login || profileAny?.username || user.email.split('@')[0];
         
         // Сохраняем пользователя в Firebase при первом логине

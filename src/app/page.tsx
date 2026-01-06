@@ -140,9 +140,14 @@ export default function Home() {
               </Button>
             </div>
           ) : (
-            <Button onClick={() => signIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
-              {t.signin}
-            </Button>
+            <div className="flex items-center space-x-2">
+              <Button onClick={() => signIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
+                {t.signin}
+              </Button>
+              <Button onClick={() => signIn('google')} className="bg-red-500 text-white hover:bg-red-600 ml-2">
+                Sign in with Google
+              </Button>
+            </div>
           )}
 
         </div>

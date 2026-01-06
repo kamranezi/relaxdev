@@ -6,9 +6,10 @@ export const dynamic = 'force-dynamic';
 // Этот endpoint вызывается из GitHub Actions workflow для обновления статуса проекта
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const body = await request.json();
     const { status, buildErrors, missingEnvVars, deploymentLogs } = body;
 
@@ -26,7 +27,7 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       updatedAt: new Date().toISOString(),
     };
 
@@ -63,4 +64,3 @@ export async function POST(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

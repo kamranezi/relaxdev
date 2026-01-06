@@ -2,20 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../../auth/[...nextauth]/route";
 import { db } from "@/lib/firebase";
-import { Octokit } from '@octokit/rest';
-
-const octokit = new Octokit({
-  auth: process.env.GITHUB_ACCESS_TOKEN,
-});
 
 export const dynamic = 'force-dynamic';
 
 // GET - получить детальную информацию о проекте
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -57,9 +53,10 @@ export async function GET(
 // PUT - обновить проект (например, переменные окружения, статус)
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -89,7 +86,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const updates: any = {
+    const updates: Record<string, unknown> = {
       ...body,
       updatedAt: new Date().toISOString(),
     };
@@ -115,9 +112,10 @@ export async function PUT(
 // DELETE - удалить проект
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
+    const params = await context.params;
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.email) {
@@ -157,4 +155,3 @@ export async function DELETE(
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

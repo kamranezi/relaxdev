@@ -3,6 +3,7 @@ import { listContainers } from '@/lib/yandex';
 import { getServerSession } from "next-auth";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { db } from "@/lib/firebase";
+import { Project } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,7 +41,7 @@ export async function GET() {
 
     // Получаем актуальные статусы из Yandex
     const folderId = process.env.YC_FOLDER_ID;
-    let containersMap: Record<string, YandexContainer> = {};
+    const containersMap: Record<string, YandexContainer> = {};
     
     if (folderId) {
       try {
@@ -55,8 +56,8 @@ export async function GET() {
     }
 
     // Фильтруем проекты в зависимости от роли
-    const projects = Object.entries(allProjects)
-      .filter(([_, project]: [string, any]) => {
+    const projects: Project[] = (Object.entries(allProjects) as [string, Project][])
+      .filter(([_, project]: [string, Project]) => {
         if (isAdmin) {
           // Админ видит все проекты
           return true;
@@ -65,7 +66,7 @@ export async function GET() {
         return project.owner === currentUserEmail || 
                project.ownerLogin === currentUserLogin;
       })
-      .map(([key, project]: [string, any]) => {
+      .map(([key, project]: [string, Project]) => {
         const container = containersMap[key];
         
         // Определяем статус на основе данных из Yandex и Firebase
@@ -94,9 +95,9 @@ export async function GET() {
           deploymentLogs: project.deploymentLogs || '',
           createdAt: project.createdAt || '',
           updatedAt: project.updatedAt || '',
-        };
+        } as Project;
       })
-      .sort((a: any, b: any) => {
+      .sort((a, b) => {
         // Сортируем по дате последнего деплоя (новые сверху)
         return new Date(b.lastDeployed || b.updatedAt || 0).getTime() - 
                new Date(a.lastDeployed || a.updatedAt || 0).getTime();

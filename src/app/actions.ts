@@ -55,9 +55,9 @@ export async function getProjects() {
 
   // Превращаем объект объектов в массив
   // { "-ID1": {name...}, "-ID2": {name...} } -> [ {id: "-ID1", name...}, ... ]
-  return Object.entries(data).map(([key, value]: [string, any]) => ({
+  return Object.entries(data).map(([key, value]: [string, unknown]) => ({
     id: key,
-    ...value
+    ...(value as object),
   }));
 }
 
