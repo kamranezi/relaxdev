@@ -43,7 +43,17 @@ jobs:
           # Сохраняем имя образа для следующего шага
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-            # 5. Обновление контейнера в Serverless
+        # 5. Создание или обновление контейнера в Serverless
+      - name: Create or Update Container
+        run: |
+          # Пытаемся создать контейнер. Если он уже есть, команда завершится с ошибкой,
+          # но '|| true' позволит продолжить выполнение workflow.
+          yc serverless container create \
+            --name ruvercel-frontend \
+            --folder-id ${{ secrets.YC_FOLDER_ID }} \
+            || true
+
+      # 6. Деплой новой ревизии (версии) контейнера
       - name: Deploy Revision
         run: |
           yc serverless container revision deploy \
