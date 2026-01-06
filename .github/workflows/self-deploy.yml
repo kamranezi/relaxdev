@@ -43,6 +43,7 @@ jobs:
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
           FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
           FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          FIREBASE_DATABASE_URL: ${{ secrets.FIREBASE_DATABASE_URL }}
           GITHUB_ID: ${{ secrets.GH_OAUTH_ID }}
           GITHUB_SECRET: ${{ secrets.GH_OAUTH_SECRET }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
@@ -59,6 +60,7 @@ jobs:
             --build-arg FIREBASE_PROJECT_ID \
             --build-arg FIREBASE_CLIENT_EMAIL \
             --build-arg FIREBASE_PRIVATE_KEY \
+            --build-arg FIREBASE_DATABASE_URL \
             --build-arg GITHUB_ID \
             --build-arg GITHUB_SECRET \
             --build-arg GOOGLE_CLIENT_ID \
@@ -99,6 +101,7 @@ jobs:
             --environment FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
             --environment FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }} \
             --environment FIREBASE_PRIVATE_KEY="${FIREBASE_PRIVATE_KEY_SECRET}" \
+            --environment FIREBASE_DATABASE_URL=${{ secrets.FIREBASE_DATABASE_URL }} \
             --environment GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
             --environment GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
             --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }} \
