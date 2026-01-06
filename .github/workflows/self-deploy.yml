@@ -2,7 +2,7 @@ name: Deploy Dashboard to Yandex
 
 on:
   push:
-    branches: [ "main" ] # Срабатывает при пуше в главную ветку
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
@@ -18,21 +18,23 @@ jobs:
           username: json_key
           password: ${{ secrets.YC_SA_KEY_JSON }}
 
-      # 2. Установка YC CLI (Утилита управления)
+      # 2. Установка YC CLI
       - name: Install YC CLI
         run: |
           curl https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
           sudo ln -s /home/runner/yandex-cloud/bin/yc /usr/bin/yc
 
-      # 3. Настройка профиля YC
+      # 3. Настройка профиля YC (ИСПРАВЛЕНО: безопасная передача ключа)
       - name: Authenticate YC CLI
+        env:
+          YC_KEY: ${{ secrets.YC_SA_KEY_JSON }}
         run: |
-          echo \'\'\'${{ secrets.YC_SA_KEY_JSON }}\'\'\' > key.json
+          echo "$YC_KEY" > key.json
           yc config profile create sa-profile
           yc config set service-account-key key.json
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
 
-      # 4. Сборка и отправка образа (Версию делаем по хэшу коммита)
+      # 4. Сборка и отправка образа
       - name: Build and Push
         run: |
           IMAGE_URI="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/ruvercel-dashboard:${{ github.sha }}"
@@ -40,10 +42,9 @@ jobs:
           docker build -t $IMAGE_URI .
           docker push $IMAGE_URI
           
-          # Сохраняем имя образа для следующего шага
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
 
-        # 5. Обновление контейнера в Serverless
+      # 5. Обновление контейнера (ДОБАВЛЕНЫ ПЕРЕМЕННЫЕ)
       - name: Deploy Revision
         run: |
           yc serverless container revision deploy \
@@ -54,4 +55,4 @@ jobs:
             --cores 1 \
             --memory 512M \
             --execution-timeout 30s \
-            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder,GITHUB_ID=${{ secrets.GH_OAUTH_ID }},GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }},WEBHOOK_SECRET=${{ secrets.WEBHOOK_SECRET }},FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }},FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }},FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
+            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},YC_REGISTRY_ID=${{ secrets.YC_REGISTRY_ID }},YC_SA_ID=${{ secrets.YC_SA_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder,GITHUB_ID=${{ secrets.GH_OAUTH_ID }},GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
