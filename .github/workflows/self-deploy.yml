@@ -35,10 +35,9 @@ jobs:
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
           rm -f key.json
 
-      # 4. Сборка и отправка образа (ИСПРАВЛЕНО)
+      # 4. Сборка и отправка образа
       - name: Build and Push
         env:
-          # Build-time переменные для Docker
           NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXTAUTH_URL }}
           FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
@@ -53,7 +52,6 @@ jobs:
           IMAGE_URI="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/ruvercel-dashboard:${{ github.sha }}"
           
           echo "🔨 Building Docker image..."
-          # Передаем все переменные окружения как build-args
           docker build \
             --progress=plain \
             --build-arg NEXTAUTH_URL \
@@ -68,7 +66,6 @@ jobs:
             --build-arg NEXTAUTH_SECRET \
             -t $IMAGE_URI . 2>&1 | tee build.log
           
-          # Проверка успешности сборки
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
             echo "❌ Build failed! Last 50 lines:"
             tail -50 build.log
@@ -81,11 +78,16 @@ jobs:
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
           echo "✅ Image pushed: $IMAGE_URI"
 
-      # 5. Обновление контейнера
+      # 5. Обновление контейнера (ИСПРАВЛЕНО)
       - name: Deploy Revision
+        env:
+          # Передаем многострочный ключ в переменную окружения для этого шага
+          FIREBASE_PRIVATE_KEY_SECRET: ${{ secrets.FIREBASE_PRIVATE_KEY }}
         run: |
           echo "🚀 Deploying new revision..."
           
+          # Каждая переменная передается через отдельный флаг --environment,
+          # что корректно обрабатывает многострочные значения
           yc serverless container revision deploy \
             --container-name ruvercel-frontend \
             --folder-id ${{ secrets.YC_FOLDER_ID }} \
@@ -94,8 +96,22 @@ jobs:
             --cores 1 \
             --memory 512M \
             --execution-timeout 30s \
-            --environment "FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }},FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }},FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }},GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }},GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }},YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},YC_REGISTRY_ID=${{ secrets.YC_REGISTRY_ID }},YC_SA_ID=${{ secrets.YC_SA_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder,GITHUB_ID=${{ secrets.GH_OAUTH_ID }},GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }},NODE_ENV=production"
-
+            --environment FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }} \
+            --environment FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }} \
+            --environment FIREBASE_PRIVATE_KEY="${FIREBASE_PRIVATE_KEY_SECRET}" \
+            --environment GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }} \
+            --environment GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }} \
+            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }} \
+            --environment YC_REGISTRY_ID=${{ secrets.YC_REGISTRY_ID }} \
+            --environment YC_SA_ID=${{ secrets.YC_SA_ID }} \
+            --environment GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }} \
+            --environment BUILDER_REPO_OWNER=kamranezi \
+            --environment BUILDER_REPO_NAME=ruvercel-builder \
+            --environment GITHUB_ID=${{ secrets.GH_OAUTH_ID }} \
+            --environment GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }} \
+            --environment NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }} \
+            --environment NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }} \
+            --environment NODE_ENV=production
           
           echo "✅ Deployment complete!"
 
