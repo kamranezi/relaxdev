@@ -1,31 +1,79 @@
 // src/lib/yandex.ts
-export async function getIAMToken() {
-  // Если мы локально (dev), нужен токен вручную. 
-  // Внутри облака получаем его из метаданных AWS-style
+
+let cachedToken: { token: string; expiresAt: number } | null = null;
+
+export async function getIAMToken(): Promise<string> {
+  // Проверяем кеш (токены живут ~12 часов)
+  if (cachedToken && cachedToken.expiresAt > Date.now()) {
+    return cachedToken.token;
+  }
+
+  // ⭐ Защита от вызова при сборке
+  if (process.env.NODE_ENV !== 'production' && !process.env.YC_IAM_TOKEN) {
+    console.warn('⚠️ Running in development mode without YC_IAM_TOKEN');
+    return '';
+  }
+
   try {
-    const response = await fetch('http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token', {
-      headers: { 'Metadata-Flavor': 'Google' },
-    });
+    const response = await fetch(
+      'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+      {
+        headers: { 'Metadata-Flavor': 'Google' },
+        // ⭐ Timeout для сборки
+        signal: AbortSignal.timeout(3000),
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Metadata service error: ${response.status}`);
+    }
+
     const data = await response.json();
+    
+    // Кешируем на 11 часов (токен живёт 12)
+    cachedToken = {
+      token: data.access_token,
+      expiresAt: Date.now() + 11 * 60 * 60 * 1000,
+    };
+
     return data.access_token;
-  } catch {
-    console.warn('Не удалось получить IAM токен из метаданных. Вы локально?');
-    return process.env.YC_IAM_TOKEN || ''; // Fallback для локальной разработки
+  } catch (error) {
+    console.warn('Failed to get IAM token from metadata:', error);
+    
+    // Fallback для локальной разработки
+    const fallbackToken = process.env.YC_IAM_TOKEN;
+    if (fallbackToken) {
+      return fallbackToken;
+    }
+    
+    throw new Error('No IAM token available. Set YC_IAM_TOKEN env variable for local development.');
   }
 }
 
 export async function listContainers(folderId: string) {
-  const token = await getIAMToken();
-  if (!token) throw new Error('No IAM token found');
+  if (!folderId) {
+    throw new Error('Folder ID is required');
+  }
 
-  const response = await fetch(`https://serverless-containers.api.cloud.yandex.net/containers/v1/containers?folderId=${folderId}`, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-    },
-  });
+  const token = await getIAMToken();
+  if (!token) {
+    throw new Error('No IAM token found');
+  }
+
+  const response = await fetch(
+    `https://serverless-containers.api.cloud.yandex.net/containers/v1/containers?folderId=${folderId}`,
+    {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+      // ⭐ Timeout
+      signal: AbortSignal.timeout(10000),
+    }
+  );
 
   if (!response.ok) {
-    throw new Error(`Yandex API Error: ${response.statusText}`);
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Yandex API Error: ${response.status} - ${errorText}`);
   }
 
   return response.json();
