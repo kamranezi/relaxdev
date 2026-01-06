@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { db } from "@/lib/firebase";
-
+import { db } from "@/lib/firebase-admin";
 export const dynamic = 'force-dynamic';
 
 // Этот endpoint вызывается из GitHub Actions workflow для обновления статуса проекта

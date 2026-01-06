@@ -1,26 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Octokit } from '@octokit/rest';
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
-import { db } from "@/lib/firebase";
-
-const octokit = new Octokit({
-  auth: process.env.GITHUB_ACCESS_TOKEN,
-});
+import { db, adminAuth } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
+    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const ownerEmail = session.user.email;
-    const ownerLogin = session.user.login || ownerEmail.split('@')[0];
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const user = await adminAuth.getUser(uid);
+    const ownerEmail = user.email!;
+
+    const userRef = db.ref(`users/${uid}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+    const githubToken = userData?.githubAccessToken;
+
+    if (!githubToken) {
+        return NextResponse.json({ error: 'GitHub token not found' }, { status: 403 });
+    }
+
+    const octokit = new Octokit({ auth: githubToken });
 
     const body = await request.json();
-    const { gitUrl, projectName, gitToken, envVars } = body;
+    const { gitUrl, projectName, envVars } = body;
 
     if (!gitUrl || !projectName) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -28,29 +34,25 @@ export async function POST(request: NextRequest) {
 
     const safeName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
     
-    // Сохраняем проект в Firebase (используем safeName как ID, т.к. это имя контейнера)
     const projectRef = db.ref(`projects/${safeName}`);
     const projectData = {
-      id: safeName, // Используем safeName как ID
+      id: safeName,
       name: projectName,
       status: 'Сборка',
       repoUrl: gitUrl,
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
       domain: `${safeName}.containers.yandexcloud.net`,
       owner: ownerEmail,
-      ownerLogin: ownerLogin,
       envVars: envVars || [],
       buildErrors: [],
       missingEnvVars: [],
       deploymentLogs: '',
-      gitToken: gitToken || '',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     await projectRef.set(projectData);
 
-    // Запускаем workflow с переменными окружения
     const envVarsString = envVars && envVars.length > 0 
       ? JSON.stringify(envVars) 
       : '';
@@ -63,13 +65,13 @@ export async function POST(request: NextRequest) {
       inputs: {
         gitUrl: gitUrl,
         projectName: safeName,
-        gitToken: gitToken || '',
-        owner: ownerLogin,
+        gitToken: githubToken || '',
+        owner: ownerEmail,
         envVars: envVarsString,
       },
     });
 
-    console.log(`[API] Triggered build for ${safeName} by ${ownerLogin}`);
+    console.log(`[API] Triggered build for ${safeName} by ${ownerEmail}`);
 
     return NextResponse.json(projectData);
 

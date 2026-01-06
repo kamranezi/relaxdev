@@ -41,8 +41,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Relax Dev - Российская платформа для деплоя",
-    description: "Relax Dev - современная PaaS платформа для деплоя проектов на Yandex Cloud",
+    title: "Relax Dev - Современная платформа для запуска проектов с GitHub",
+    description: "Relax Dev - Простой и удобный сервис для развертывания любого бота, сайта, приложения на серверах Yandex",
     images: [`${siteUrl}/bg.webp`],
   },
   icons: {
