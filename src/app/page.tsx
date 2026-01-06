@@ -75,12 +75,12 @@ export default function Home() {
     return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US');
   };
 
-  const handleDeploy = async (gitUrl: string, projectName: string, gitToken?: string) => {
+  const handleDeploy = async (gitUrl: string, projectName: string, gitToken?: string, envVars?: { key: string; value: string }[]) => {
     try {
       const response = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitUrl, projectName, gitToken }),
+        body: JSON.stringify({ gitUrl, projectName, gitToken, envVars }),
       });
 
       if (!response.ok) throw new Error('Deployment failed');

@@ -1,0 +1,191 @@
+name: Universal Builder
+
+on:
+  workflow_dispatch:
+    inputs:
+      gitUrl:
+        description: 'Client Git URL'
+        required: true
+      projectName:
+        description: 'Internal Project Name (ID)'
+        required: true
+      gitToken:
+        description: 'GitHub Token'
+        required: false
+      owner:               # <--- 1. ДОБАВИЛИ НОВЫЙ ВХОДНОЙ ПАРАМЕТР
+        description: 'Owner Login'
+        required: true
+      envVars:
+        description: 'Environment Variables (JSON array)'
+        required: false
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Login to Yandex CR
+        uses: docker/login-action@v3
+        with:
+          registry: cr.yandex
+          username: json_key
+          password: ${{ secrets.YC_SA_KEY_JSON }}
+
+      - name: Install YC CLI
+        run: |
+          curl https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          sudo ln -s /home/runner/yandex-cloud/bin/yc /usr/bin/yc
+
+      - name: Authenticate YC CLI
+        run: |
+          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
+          yc config profile create sa-profile
+          yc config set service-account-key key.json
+          yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+
+      - name: Clone Repository
+        run: |
+          if [ -n "${{ github.event.inputs.gitToken }}" ]; then
+            CLEAN_URL=$(echo "${{ github.event.inputs.gitUrl }}" | sed 's~https://~~')
+            git clone "https://${{ github.event.inputs.gitToken }}@$CLEAN_URL" client_code
+          else
+            git clone "${{ github.event.inputs.gitUrl }}" client_code
+          fi
+
+      - name: Ensure Dockerfile exists
+        run: |
+          cd client_code
+          if [ ! -f Dockerfile ]; then
+            echo "Creating default Next.js Dockerfile..."
+            echo 'FROM node:18-alpine
+            WORKDIR /app
+            COPY package*.json ./
+            RUN npm ci
+            COPY . .
+            RUN npm run build
+            CMD ["npm", "start"]
+            EXPOSE 3000' > Dockerfile
+          fi
+
+      - name: Build and Push
+        run: |
+          # Чистим переменные от лишних символов
+          REGISTRY_ID=$(echo "${{ secrets.YC_REGISTRY_ID }}" | tr -d '\n\r ')
+          PROJECT_NAME=$(echo "${{ github.event.inputs.projectName }}" | tr -d '\n\r ')
+          
+          IMAGE_URI="cr.yandex/$REGISTRY_ID/$PROJECT_NAME:latest"
+          
+          cd client_code
+          docker build -t $IMAGE_URI .
+          docker push $IMAGE_URI
+
+      - name: Parse Environment Variables
+        id: parse-env
+        run: |
+          ENV_VARS="${{ github.event.inputs.envVars }}"
+          if [ -z "$ENV_VARS" ] || [ "$ENV_VARS" == "null" ] || [ "$ENV_VARS" == "[]" ]; then
+            echo "env_list=" >> $GITHUB_OUTPUT
+            echo "env_json={}" >> $GITHUB_OUTPUT
+          else
+            # Преобразуем JSON массив в формат для YC CLI
+            ENV_LIST=$(echo "$ENV_VARS" | jq -r '.[] | "\(.key)=\(.value)"' | tr '\n' ',' | sed 's/,$//')
+            echo "env_list=$ENV_LIST" >> $GITHUB_OUTPUT
+            echo "env_json=$ENV_VARS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Deploy to Yandex Serverless
+        id: deploy
+        run: |
+          PROJECT_NAME="${{ github.event.inputs.projectName }}"
+          FOLDER_ID="${{ secrets.YC_FOLDER_ID }}"
+          REGISTRY_ID="${{ secrets.YC_REGISTRY_ID }}"
+          IMAGE_URI="cr.yandex/$REGISTRY_ID/$PROJECT_NAME:latest"
+          OWNER="${{ github.event.inputs.owner }}"
+          
+          # 2. СОЗДАЕМ КОНТЕЙНЕР С МЕТКОЙ (LABEL) ВЛАДЕЛЬЦА
+          yc serverless container create \
+            --name $PROJECT_NAME \
+            --folder-id $FOLDER_ID \
+            --labels owner=$OWNER,repoUrl="${{ github.event.inputs.gitUrl }}" \
+            || true
+          
+          # Подготавливаем переменные окружения для деплоя
+          ENV_LIST="${{ steps.parse-env.outputs.env_list }}"
+          ENV_DEPLOY_ARGS=""
+          
+          if [ -n "$ENV_LIST" ] && [ "$ENV_LIST" != "null" ]; then
+            # Преобразуем список переменных в аргументы для YC CLI
+            IFS=',' read -ra ENV_ARRAY <<< "$ENV_LIST"
+            for env_pair in "${ENV_ARRAY[@]}"; do
+              ENV_DEPLOY_ARGS="$ENV_DEPLOY_ARGS --environment $env_pair"
+            done
+          fi
+          
+          # Деплоим ревизию с переменными окружения
+          yc serverless container revision deploy \
+            --container-name $PROJECT_NAME \
+            --folder-id $FOLDER_ID \
+            --image $IMAGE_URI \
+            --cores 1 \
+            --memory 512M \
+            --service-account-id ${{ secrets.YC_SA_ID }} \
+            --execution-timeout 30s \
+            $ENV_DEPLOY_ARGS || BUILD_ERROR="true"
+          
+          if [ "$BUILD_ERROR" == "true" ]; then
+            echo "deploy_status=error" >> $GITHUB_OUTPUT
+            echo "deploy_message=Build failed" >> $GITHUB_OUTPUT
+          else
+            yc serverless container allow-unauthenticated-invoke \
+              --name $PROJECT_NAME \
+              --folder-id $FOLDER_ID
+            
+            echo "deploy_status=success" >> $GITHUB_OUTPUT
+            echo "deploy_message=Deployed successfully" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Check for build warnings
+        id: check-warnings
+        continue-on-error: true
+        run: |
+          MISSING_ENV_VARS=""
+          BUILD_ERRORS=""
+          
+          # Здесь можно добавить проверку логов сборки на наличие ошибок
+          # Пока оставляем пустым, так как конкретные ошибки зависят от проекта
+          
+          if [ -n "$MISSING_ENV_VARS" ]; then
+            echo "missing_vars=$MISSING_ENV_VARS" >> $GITHUB_OUTPUT
+          fi
+          
+          if [ -n "$BUILD_ERRORS" ]; then
+            echo "build_errors=$BUILD_ERRORS" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update project status
+        if: always()
+        continue-on-error: true
+        run: |
+          PROJECT_NAME="${{ github.event.inputs.projectName }}"
+          DEPLOY_STATUS="${{ steps.deploy.outputs.deploy_status }}"
+          DEPLOY_MESSAGE="${{ steps.deploy.outputs.deploy_message }}"
+          
+          # Определяем статус для отправки
+          if [ "$DEPLOY_STATUS" == "success" ]; then
+            STATUS="success"
+          else
+            STATUS="error"
+            DEPLOY_MESSAGE="${DEPLOY_MESSAGE:-Build failed}"
+          fi
+          
+          # Отправляем обновление статуса в API
+          API_URL="${{ secrets.API_URL || 'https://relaxdev.ru' }}"
+          curl -X POST "$API_URL/api/projects/$PROJECT_NAME/update-status" \
+            -H "Content-Type: application/json" \
+            -H "x-webhook-secret: ${{ secrets.WEBHOOK_SECRET }}" \
+            -d "{
+              \"status\": \"$STATUS\",
+              \"buildErrors\": ${{ steps.check-warnings.outputs.build_errors || '[]' }},
+              \"missingEnvVars\": ${{ steps.check-warnings.outputs.missing_vars || '[]' }},
+              \"deploymentLogs\": \"$DEPLOY_MESSAGE\"
+            }" || echo "Failed to update status"
+

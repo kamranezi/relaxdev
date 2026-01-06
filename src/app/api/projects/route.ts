@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import { listContainers } from '@/lib/yandex';
 import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route"; // <--- ИМПОРТИРУЕМ ОПЦИИ
+import { authOptions } from "../auth/[...nextauth]/route";
+import { db } from "@/lib/firebase";
 
 export const dynamic = 'force-dynamic';
 
@@ -17,34 +18,91 @@ interface YandexContainer {
 
 export async function GET() {
   try {
-    const folderId = process.env.YC_FOLDER_ID;
-    if (!folderId) {
-      return NextResponse.json({ error: 'YC_FOLDER_ID not set' }, { status: 500 });
+    const session = await getServerSession(authOptions);
+    
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const session = await getServerSession(authOptions);
-    // Используем login, так как он более надежен
-    const currentUser = session?.user?.login;
-
-    const data = await listContainers(folderId);
+    const currentUserEmail = session.user.email;
+    const currentUserLogin = session.user.login || currentUserEmail.split('@')[0];
     
-    // Применяем строгую типизацию
-    const myProjects = (data.containers || [])
-      .filter((c: YandexContainer) => {
-         // Проверяем, совпадает ли владелец проекта с текущим пользователем
-         return c.labels?.owner === currentUser;
-      })
-      .map((c: YandexContainer) => ({
-        id: c.id,
-        name: c.name,
-        status: c.status === 'ACTIVE' ? 'Активен' : 'Ошибка',
-        repoUrl: c.labels?.repoUrl || '',
-        lastDeployed: c.createdAt,
-        targetImage: '' /* Это поле больше не нужно, так как мы получаем его из API */, 
-        domain: c.url,
-      }));
+    // Проверяем, является ли пользователь админом
+    const userRef = db.ref(`users/${currentUserEmail.replace(/\./g, '_')}`);
+    const userSnapshot = await userRef.once('value');
+    const userData = userSnapshot.val();
+    const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
 
-    return NextResponse.json(myProjects);
+    // Получаем проекты из Firebase
+    const projectsRef = db.ref('projects');
+    const projectsSnapshot = await projectsRef.once('value');
+    const allProjects = projectsSnapshot.val() || {};
+
+    // Получаем актуальные статусы из Yandex
+    const folderId = process.env.YC_FOLDER_ID;
+    let containersMap: Record<string, YandexContainer> = {};
+    
+    if (folderId) {
+      try {
+        const containersData = await listContainers(folderId);
+        const containers = (containersData.containers || []) as YandexContainer[];
+        containers.forEach((c: YandexContainer) => {
+          containersMap[c.name] = c;
+        });
+      } catch (error) {
+        console.error('Ошибка получения контейнеров из Yandex:', error);
+      }
+    }
+
+    // Фильтруем проекты в зависимости от роли
+    const projects = Object.entries(allProjects)
+      .filter(([_, project]: [string, any]) => {
+        if (isAdmin) {
+          // Админ видит все проекты
+          return true;
+        }
+        // Обычный пользователь видит только свои проекты
+        return project.owner === currentUserEmail || 
+               project.ownerLogin === currentUserLogin;
+      })
+      .map(([key, project]: [string, any]) => {
+        const container = containersMap[key];
+        
+        // Определяем статус на основе данных из Yandex и Firebase
+        let status = project.status || 'Сборка';
+        if (container) {
+          if (container.status === 'ACTIVE') {
+            status = 'Активен';
+          } else if (container.status === 'ERROR' || container.status === 'STOPPED') {
+            status = 'Ошибка';
+          }
+        }
+
+        return {
+          id: project.id || key,
+          name: project.name || key,
+          status: status,
+          repoUrl: project.repoUrl || '',
+          lastDeployed: project.lastDeployed || project.updatedAt || project.createdAt || '',
+          targetImage: project.targetImage || '',
+          domain: container?.url || project.domain || '',
+          owner: project.owner || '',
+          ownerLogin: project.ownerLogin || '',
+          envVars: project.envVars || [],
+          buildErrors: project.buildErrors || [],
+          missingEnvVars: project.missingEnvVars || [],
+          deploymentLogs: project.deploymentLogs || '',
+          createdAt: project.createdAt || '',
+          updatedAt: project.updatedAt || '',
+        };
+      })
+      .sort((a: any, b: any) => {
+        // Сортируем по дате последнего деплоя (новые сверху)
+        return new Date(b.lastDeployed || b.updatedAt || 0).getTime() - 
+               new Date(a.lastDeployed || a.updatedAt || 0).getTime();
+      });
+
+    return NextResponse.json(projects);
 
   } catch (error) {
     console.error('API Error:', error);

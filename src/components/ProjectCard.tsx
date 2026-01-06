@@ -2,7 +2,7 @@
 
 import { Project } from '@/types';
 import { Language } from '@/lib/i18n';
-import { CheckCircle2, Loader2, XCircle, ExternalLink } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle, ExternalLink, AlertCircle } from 'lucide-react';
 
 interface ProjectCardProps {
   project: Project;
@@ -63,32 +63,65 @@ export function ProjectCard({ project, language }: ProjectCardProps) {
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
   const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
+  const hasWarnings = (project.buildErrors && project.buildErrors.length > 0) || 
+                     (project.missingEnvVars && project.missingEnvVars.length > 0);
 
   return (
-    <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-6 hover:shadow-cyan-500/20 hover:border border-gray-800 transition-all duration-300 group flex flex-col justify-between">
+    <div 
+      className="bg-[#1A1A1A] rounded-lg shadow-lg p-6 hover:shadow-cyan-500/20 hover:border border-gray-800 transition-all duration-300 group flex flex-col justify-between cursor-pointer"
+      onClick={() => window.location.href = `/projects/${project.id}`}
+    >
       <div>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors">
             {project.name}
           </h3>
-          <a
-            href={project.repoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-gray-400 hover:text-white transition-colors"
-            title="GitHub Repository"
-          >
-            <GithubIcon className="h-5 w-5" />
-          </a>
+          <div className="flex items-center gap-2">
+            {hasWarnings && (
+              <span title={language === 'ru' ? 'Есть предупреждения' : 'Has warnings'}>
+                <AlertCircle className="h-5 w-5 text-yellow-500" />
+              </span>
+            )}
+            <a
+              href={project.repoUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-gray-400 hover:text-white transition-colors"
+              title="GitHub Repository"
+            >
+              <GithubIcon className="h-5 w-5" />
+            </a>
+          </div>
         </div>
         
         <div className="mb-4 flex items-center justify-between">
           <p className="text-gray-400 font-mono text-sm truncate">{project.domain}</p>
-          <a href={domainUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs bg-gray-700/50 hover:bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full transition-colors">
+          <a 
+            href={domainUrl} 
+            target="_blank" 
+            rel="noopener noreferrer" 
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-2 text-xs bg-gray-700/50 hover:bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full transition-colors"
+          >
               Visit
               <ExternalLink className="h-3.5 w-3.5" />
           </a>
         </div>
+        
+        {hasWarnings && (
+          <div className="mb-2 text-xs text-yellow-500 flex items-center gap-1">
+            <AlertCircle className="h-3 w-3" />
+            <span>
+              {project.buildErrors && project.buildErrors.length > 0 && 
+                `${language === 'ru' ? 'Ошибки сборки' : 'Build errors'}`}
+              {project.buildErrors && project.buildErrors.length > 0 && 
+               project.missingEnvVars && project.missingEnvVars.length > 0 && ', '}
+              {project.missingEnvVars && project.missingEnvVars.length > 0 && 
+                `${language === 'ru' ? 'отсутствуют переменные' : 'missing env vars'}`}
+            </span>
+          </div>
+        )}
       </div>
       
       <div className="flex items-center justify-between">

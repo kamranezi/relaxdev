@@ -4,13 +4,14 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Github, Lock, Search, Loader2, X } from 'lucide-react';
+import { Github, Lock, Search, Loader2, X, Plus } from 'lucide-react';
 import { useSession } from 'next-auth/react';
+import { ProjectEnvVar } from '@/types';
 
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDeploy: (gitUrl: string, projectName: string, gitToken?: string) => Promise<void>;
+  onDeploy: (gitUrl: string, projectName: string, gitToken?: string, envVars?: ProjectEnvVar[]) => Promise<void>;
   language: 'ru' | 'en';
 }
 
@@ -33,6 +34,9 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
+  const [envVars, setEnvVars] = useState<ProjectEnvVar[]>([]);
+  const [newEnvKey, setNewEnvKey] = useState('');
+  const [newEnvValue, setNewEnvValue] = useState('');
 
   useEffect(() => {
     if (isOpen && session) {
@@ -43,6 +47,9 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
         setGitUrl('');
         setProjectName('');
         setSearchQuery('');
+        setEnvVars([]);
+        setNewEnvKey('');
+        setNewEnvValue('');
     }
   }, [isOpen, session]);
 
@@ -72,12 +79,24 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
     setProjectName('');
   };
 
+  const handleAddEnvVar = () => {
+    if (newEnvKey.trim() && newEnvValue.trim()) {
+      setEnvVars([...envVars, { key: newEnvKey.trim(), value: newEnvValue.trim() }]);
+      setNewEnvKey('');
+      setNewEnvValue('');
+    }
+  };
+
+  const handleRemoveEnvVar = (index: number) => {
+    setEnvVars(envVars.filter((_, i) => i !== index));
+  };
+
   const handleDeployClick = async () => {
     if (!gitUrl || !projectName) return;
     setIsLoading(true);
     try {
       // Токен пока не используется, передаем пустую строку
-      await onDeploy(gitUrl, projectName, '');
+      await onDeploy(gitUrl, projectName, '', envVars.length > 0 ? envVars : undefined);
       onClose();
     } catch (error) {
       console.error("Ошибка деплоя:", error);
@@ -189,6 +208,76 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language }: AddProj
                         />
                     </div>
                 )}
+            </div>
+
+            <div className="space-y-3 pt-4 border-t border-gray-800">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-medium text-gray-400">
+                  {language === 'ru' ? 'Переменные окружения' : 'Environment Variables'}
+                </label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleAddEnvVar}
+                  disabled={!newEnvKey.trim() || !newEnvValue.trim()}
+                  className="text-xs h-7"
+                >
+                  <Plus className="w-3 h-3 mr-1" />
+                  {language === 'ru' ? 'Добавить' : 'Add'}
+                </Button>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    value={newEnvKey}
+                    onChange={(e) => setNewEnvKey(e.target.value)}
+                    placeholder={language === 'ru' ? 'KEY' : 'KEY'}
+                    className="bg-black/50 border-gray-700 text-xs"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
+                        handleAddEnvVar();
+                      }
+                    }}
+                  />
+                  <Input
+                    value={newEnvValue}
+                    onChange={(e) => setNewEnvValue(e.target.value)}
+                    placeholder={language === 'ru' ? 'VALUE' : 'VALUE'}
+                    className="bg-black/50 border-gray-700 text-xs"
+                    type="password"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
+                        handleAddEnvVar();
+                      }
+                    }}
+                  />
+                </div>
+
+                {envVars.length > 0 && (
+                  <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-800 rounded-md p-2">
+                    {envVars.map((envVar, index) => (
+                      <div key={index} className="flex items-center justify-between text-xs bg-gray-900/50 p-2 rounded">
+                        <span className="text-gray-300">
+                          <span className="font-mono text-blue-400">{envVar.key}</span>
+                          <span className="text-gray-500 mx-2">=</span>
+                          <span className="text-green-400">••••••••</span>
+                        </span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveEnvVar(index)}
+                          className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <Button 
