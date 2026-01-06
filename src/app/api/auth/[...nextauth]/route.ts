@@ -2,7 +2,7 @@ import NextAuth, { AuthOptions, Session } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
-import { db } from "@/lib/firebase"; 
+import { db } from "@/lib/firebase";
 
 export const authOptions: AuthOptions = {
   providers: [
@@ -22,16 +22,22 @@ export const authOptions: AuthOptions = {
   ],
   callbacks: {
     async jwt({ token, account, user, profile }) {
-      if (account && user && user.email) {
+      // При первом входе (когда есть account и user)
+      if (account && user) {
         token.accessToken = account.access_token;
-        
+        // Используем user.id в качестве UID
+        token.uid = user.id;
+        token.email = user.email;
+
         const profileAny = profile as { login?: string; username?: string };
-        const userLogin = profileAny?.login || profileAny?.username || user.email.split('@')[0];
-        
+        const userLogin = profileAny?.login || profileAny?.username || user.email?.split('@')[0];
+        token.login = userLogin;
+
         try {
-          const userRef = db.ref(`users/${user.email.replace(/\./g, '_')}`);
+          // ИСПОЛЬЗУЕМ UID В КАЧЕСТВЕ КЛЮЧА В БАЗЕ ДАННЫХ
+          const userRef = db.ref(`users/${user.id}`);
           const userData = {
-            email: user.email,
+            email: user.email || '',
             name: user.name || '',
             image: user.image || '',
             login: userLogin,
@@ -40,30 +46,31 @@ export const authOptions: AuthOptions = {
             updatedAt: new Date().toISOString(),
             role: user.email === 'alexrus1144@gmail.com' ? 'admin' : 'user',
           };
-          
+
           const snapshot = await userRef.once('value');
           if (!snapshot.exists()) {
             await userRef.set(userData);
           } else {
             await userRef.update({
-              ...userData,
+              name: user.name || '',
+              image: user.image || '',
+              login: userLogin,
               updatedAt: new Date().toISOString(),
             });
           }
         } catch (error) {
           console.error('Ошибка сохранения пользователя в Firebase:', error);
         }
-        
-        token.email = user.email;
-        token.login = userLogin;
       }
       return token;
     },
     async session({ session, token }: { session: Session; token: JWT }) {
+      // Передаем данные из токена в сессию
       session.accessToken = token.accessToken;
       if (session.user) {
-        session.user.email = token.email || session.user.email;
-        session.user.login = token.login || token.sub;
+        session.user.id = token.uid as string;
+        session.user.email = token.email;
+        session.user.login = token.login;
       }
       return session;
     },
