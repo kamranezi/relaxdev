@@ -1,6 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, adminAuth } from '@/lib/firebase-admin';
 
+interface UserData {
+  email: string;
+  name: string;
+  image: string;
+  provider: string;
+  updatedAt: string;
+  githubAccessToken?: string;
+  createdAt?: string;
+  role?: string;
+}
+
 export async function POST(req: NextRequest) {
   const { idToken, provider, accessToken } = await req.json();
 
@@ -11,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const userRef = db.ref(`users/${uid}`);
     const snapshot = await userRef.once('value');
-    const userData: any = {
+    const userData: UserData = {
       email: user.email || '',
       name: user.displayName || '',
       image: user.photoURL || '',

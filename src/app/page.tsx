@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
-import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut as firebaseSignOut, OAuthProvider } from 'firebase/auth';
+import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase-client';
 import { Project } from '@/types';
 import { getTranslation, Language } from '@/lib/i18n';
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const [language, setLanguage] = useState<Language>('ru');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);

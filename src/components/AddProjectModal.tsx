@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Github, Lock, Search, Loader2, X, Plus } from 'lucide-react';
+import { Github, Lock, Loader2, X, Plus } from 'lucide-react';
 import { ProjectEnvVar } from '@/types';
 import { User } from 'firebase/auth';
 
@@ -36,22 +36,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
 
-  useEffect(() => {
-    if (isOpen && user) {
-      loadRepos();
-    }
-    if (isOpen) {
-        setSelectedRepo(null);
-        setGitUrl('');
-        setProjectName('');
-        setSearchQuery('');
-        setEnvVars([]);
-        setNewEnvKey('');
-        setNewEnvValue('');
-    }
-  }, [isOpen, user]);
-
-  const loadRepos = async () => {
+  const loadRepos = useCallback(async () => {
     if (!user) return;
     setIsLoadingRepos(true);
     try {
@@ -70,7 +55,22 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
     } finally {
       setIsLoadingRepos(false);
     }
-  };
+  }, [user]);
+
+  useEffect(() => {
+    if (isOpen && user) {
+      loadRepos();
+    }
+    if (isOpen) {
+        setSelectedRepo(null);
+        setGitUrl('');
+        setProjectName('');
+        setSearchQuery('');
+        setEnvVars([]);
+        setNewEnvKey('');
+        setNewEnvValue('');
+    }
+  }, [isOpen, user, loadRepos]);
 
   const handleRepoSelect = (repo: Repo) => {
     setSelectedRepo(repo);

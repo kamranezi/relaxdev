@@ -1,45 +1,41 @@
 import { NextResponse } from 'next/server';
 import { listContainers } from '@/lib/yandex';
-import { getServerSession } from "next-auth";
-import { authOptions } from "../auth/[...nextauth]/route";
-import { db } from "@/lib/firebase";
+import { db, adminAuth } from "@/lib/firebase-admin";
 import { Project } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-// Определяем тип для объекта контейнера от Yandex
 interface YandexContainer {
   id: string;
   name: string;
   status: string;
   createdAt: string;
-  url: string; // domain
+  url: string; 
   labels: { [key: string]: string };
 }
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
+    const idToken = req.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const currentUserEmail = session.user.email;
-    const currentUserLogin = session.user.login || currentUserEmail.split('@')[0];
     
-    // Проверяем, является ли пользователь админом
-    const userRef = db.ref(`users/${currentUserEmail.replace(/\./g, '_')}`);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const user = await adminAuth.getUser(uid);
+    
+    const currentUserEmail = user.email!;
+
+    const userRef = db.ref(`users/${uid}`);
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
 
-    // Получаем проекты из Firebase
     const projectsRef = db.ref('projects');
     const projectsSnapshot = await projectsRef.once('value');
     const allProjects = projectsSnapshot.val() || {};
 
-    // Получаем актуальные статусы из Yandex
     const folderId = process.env.YC_FOLDER_ID;
     const containersMap: Record<string, YandexContainer> = {};
     
@@ -55,21 +51,16 @@ export async function GET() {
       }
     }
 
-    // Фильтруем проекты в зависимости от роли
     const projects: Project[] = (Object.entries(allProjects) as [string, Project][])
-      .filter(([_, project]: [string, Project]) => {
+      .filter(([key, project]: [string, Project]) => {
         if (isAdmin) {
-          // Админ видит все проекты
           return true;
         }
-        // Обычный пользователь видит только свои проекты
-        return project.owner === currentUserEmail || 
-               project.ownerLogin === currentUserLogin;
+        return project.owner === currentUserEmail;
       })
       .map(([key, project]: [string, Project]) => {
         const container = containersMap[key];
         
-        // Определяем статус на основе данных из Yandex и Firebase
         let status = project.status || 'Сборка';
         if (container) {
           if (container.status === 'ACTIVE') {
@@ -88,7 +79,6 @@ export async function GET() {
           targetImage: project.targetImage || '',
           domain: container?.url || project.domain || '',
           owner: project.owner || '',
-          ownerLogin: project.ownerLogin || '',
           envVars: project.envVars || [],
           buildErrors: project.buildErrors || [],
           missingEnvVars: project.missingEnvVars || [],
@@ -98,7 +88,6 @@ export async function GET() {
         } as Project;
       })
       .sort((a, b) => {
-        // Сортируем по дате последнего деплоя (новые сверху)
         return new Date(b.lastDeployed || b.updatedAt || 0).getTime() - 
                new Date(a.lastDeployed || a.updatedAt || 0).getTime();
       });
