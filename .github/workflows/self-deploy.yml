@@ -33,22 +33,39 @@ jobs:
           yc config profile create sa-profile
           yc config set service-account-key key.json
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
-          rm -f key.json  # Удаляем ключ после использования
+          rm -f key.json
 
       # 4. Сборка и отправка образа (ИСПРАВЛЕНО)
       - name: Build and Push
         env:
-          # Build-time переменные (NEXT_PUBLIC_*)
+          # Build-time переменные для Docker
           NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
           NEXT_PUBLIC_API_URL: ${{ secrets.NEXTAUTH_URL }}
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+          FIREBASE_CLIENT_EMAIL: ${{ secrets.FIREBASE_CLIENT_EMAIL }}
+          FIREBASE_PRIVATE_KEY: ${{ secrets.FIREBASE_PRIVATE_KEY }}
+          GITHUB_ID: ${{ secrets.GH_OAUTH_ID }}
+          GITHUB_SECRET: ${{ secrets.GH_OAUTH_SECRET }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
         run: |
           IMAGE_URI="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/ruvercel-dashboard:${{ github.sha }}"
           
           echo "🔨 Building Docker image..."
+          # Передаем все переменные окружения как build-args
           docker build \
             --progress=plain \
-            --build-arg NEXTAUTH_URL="${NEXTAUTH_URL}" \
-            --build-arg NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" \
+            --build-arg NEXTAUTH_URL \
+            --build-arg NEXT_PUBLIC_API_URL \
+            --build-arg FIREBASE_PROJECT_ID \
+            --build-arg FIREBASE_CLIENT_EMAIL \
+            --build-arg FIREBASE_PRIVATE_KEY \
+            --build-arg GITHUB_ID \
+            --build-arg GITHUB_SECRET \
+            --build-arg GOOGLE_CLIENT_ID \
+            --build-arg GOOGLE_CLIENT_SECRET \
+            --build-arg NEXTAUTH_SECRET \
             -t $IMAGE_URI . 2>&1 | tee build.log
           
           # Проверка успешности сборки
@@ -64,7 +81,7 @@ jobs:
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
           echo "✅ Image pushed: $IMAGE_URI"
 
-      # 5. Обновление контейнера (ИСПРАВЛЕНО: переменные в правильном формате)
+      # 5. Обновление контейнера
       - name: Deploy Revision
         run: |
           echo "🚀 Deploying new revision..."
@@ -92,7 +109,7 @@ jobs:
           
           echo "✅ Deployment complete!"
 
-      # 6. Очистка (опционально)
+      # 6. Очистка
       - name: Cleanup
         if: always()
         run: |
