@@ -31,9 +31,8 @@ export const authOptions: AuthOptions = {
         const userLogin = profileAny?.login || profileAny?.username || user.email.split('@')[0];
         
         // Сохраняем пользователя в Firebase при первом логине
-        try {
-          const userRef = db.ref(`users/${user.email.replace(/\./g, '_')}`);
-          const userData = {
+        const userRef = db.ref(`users/${user.email.replace(/\./g, '_')}`);
+        const userData = {
             email: user.email,
             name: user.name || '',
             image: user.image || '',
@@ -42,22 +41,15 @@ export const authOptions: AuthOptions = {
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
             role: user.email === 'alexrus1144@gmail.com' ? 'admin' : 'user',
-          };
-          
-          const snapshot = await userRef.once('value');
-          if (!snapshot.exists()) {
-            // Пользователь новый, создаем запись
-            await userRef.set(userData);
-          } else {
-            // Обновляем существующего пользователя
-            await userRef.update({
-              ...userData,
-              updatedAt: new Date().toISOString(),
-            });
-          }
-        } catch (error) {
-          console.error('Ошибка сохранения пользователя в Firebase:', error);
-        }
+        };
+
+        userRef.once('value').then(snapshot => {
+            if (!snapshot.exists()) {
+                userRef.set(userData).catch(error => console.error('Ошибка создания пользователя в Firebase:', error));
+            } else {
+                userRef.update({ ...userData, updatedAt: new Date().toISOString() }).catch(error => console.error('Ошибка обновления пользователя в Firebase:', error));
+            }
+        }).catch(error => console.error('Ошибка чтения данных из Firebase:', error));
         
         // Сохраняем email и login для использования в сессии
         token.email = user.email;

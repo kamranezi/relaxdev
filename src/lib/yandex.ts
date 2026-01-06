@@ -10,7 +10,7 @@ export async function getIAMToken() {
       return data.access_token;
     } catch {
       console.warn('Не удалось получить IAM токен из метаданных. Вы локально?');
-      return process.env.YC_IAM_TOKEN || ''; // Fallback для локальной разработки
+      return process.env.YC_API_KEY || ''; // Fallback для локальной разработки
     }
   }
   
@@ -20,7 +20,7 @@ export async function getIAMToken() {
   
     const response = await fetch(`https://serverless-containers.api.cloud.yandex.net/containers/v1/containers?folderId=${folderId}`, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        'Authorization': `Api-Key ${token}`,
       },
     });
   
