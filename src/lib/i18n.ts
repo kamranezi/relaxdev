@@ -25,7 +25,7 @@ export const translations = {
     noProjectsTitle: 'Нет активных проектов',
     noProjectsDescription: 'Ваш список контейнеров в Яндекс Облаке пуст.',
     overview: 'Обзор',
-    envVars: 'Переменные среды',
+    envVars: 'Переменные И секреты',
     logs: 'Логи',
     owner: 'Владелец',
     domain: 'Домен',
