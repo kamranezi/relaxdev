@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from "next-auth";
-import { authOptions } from "../../auth/[...nextauth]/route";
-import { db } from "@/lib/firebase";
+import { db, adminAuth } from "@/lib/firebase-admin";
 
 export const dynamic = 'force-dynamic';
 
@@ -12,22 +10,21 @@ export async function GET(
 ) {
   try {
     const params = await context.params;
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
+    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const currentUserEmail = session.user.email;
-    const currentUserLogin = session.user.login || currentUserEmail.split('@')[0];
-    
-    // Проверяем роль пользователя
-    const userRef = db.ref(`users/${currentUserEmail.replace(/\./g, '_')}`);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const user = await adminAuth.getUser(uid);
+    const currentUserEmail = user.email!;
+
+    const userRef = db.ref(`users/${uid}`);
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
 
-    // Получаем проект из Firebase
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
     const project = projectSnapshot.val();
@@ -36,8 +33,7 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Проверяем права доступа
-    if (!isAdmin && project.owner !== currentUserEmail && project.ownerLogin !== currentUserLogin) {
+    if (!isAdmin && project.owner !== currentUserEmail) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -57,17 +53,17 @@ export async function PUT(
 ) {
   try {
     const params = await context.params;
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
+    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const currentUserEmail = session.user.email;
-    const currentUserLogin = session.user.login || currentUserEmail.split('@')[0];
-    
-    // Проверяем роль пользователя
-    const userRef = db.ref(`users/${currentUserEmail.replace(/\./g, '_')}`);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const user = await adminAuth.getUser(uid);
+    const currentUserEmail = user.email!;
+
+    const userRef = db.ref(`users/${uid}`);
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
@@ -80,8 +76,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Проверяем права доступа
-    if (!isAdmin && project.owner !== currentUserEmail && project.ownerLogin !== currentUserLogin) {
+    if (!isAdmin && project.owner !== currentUserEmail) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -91,13 +86,10 @@ export async function PUT(
       updatedAt: new Date().toISOString(),
     };
 
-    // Не позволяем менять owner и ownerLogin
     delete updates.owner;
-    delete updates.ownerLogin;
 
     await projectRef.update(updates);
 
-    // Обновляем локальный объект проекта
     const updatedProject = { ...project, ...updates };
 
     return NextResponse.json(updatedProject);
@@ -116,17 +108,17 @@ export async function DELETE(
 ) {
   try {
     const params = await context.params;
-    const session = await getServerSession(authOptions);
-    
-    if (!session?.user?.email) {
+    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
+    if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const currentUserEmail = session.user.email;
-    const currentUserLogin = session.user.login || currentUserEmail.split('@')[0];
-    
-    // Проверяем роль пользователя
-    const userRef = db.ref(`users/${currentUserEmail.replace(/\./g, '_')}`);
+    const decodedToken = await adminAuth.verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    const user = await adminAuth.getUser(uid);
+    const currentUserEmail = user.email!;
+
+    const userRef = db.ref(`users/${uid}`);
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
@@ -139,12 +131,10 @@ export async function DELETE(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Проверяем права доступа
-    if (!isAdmin && project.owner !== currentUserEmail && project.ownerLogin !== currentUserLogin) {
+    if (!isAdmin && project.owner !== currentUserEmail) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Удаляем проект из Firebase
     await projectRef.remove();
 
     return NextResponse.json({ success: true });
