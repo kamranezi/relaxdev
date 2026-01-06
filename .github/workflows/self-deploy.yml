@@ -27,7 +27,7 @@ jobs:
       # 3. Настройка профиля YC
       - name: Authenticate YC CLI
         run: |
-          echo '${{ secrets.YC_SA_KEY_JSON }}' > key.json
+          echo \'\'\'${{ secrets.YC_SA_KEY_JSON }}\'\'\' > key.json
           yc config profile create sa-profile
           yc config set service-account-key key.json
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
@@ -54,4 +54,4 @@ jobs:
             --cores 1 \
             --memory 512M \
             --execution-timeout 30s \
-            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder,GITHUB_ID=${{ secrets.GH_OAUTH_ID }},GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }},WEBHOOK_SECRET=${{ secrets.WEBHOOK_SECRET }}
+            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder,GITHUB_ID=${{ secrets.GH_OAUTH_ID }},GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }},WEBHOOK_SECRET=${{ secrets.WEBHOOK_SECRET }},FIREBASE_PROJECT_ID=${{ secrets.FIREBASE_PROJECT_ID }},FIREBASE_PRIVATE_KEY=${{ secrets.FIREBASE_PRIVATE_KEY }},FIREBASE_CLIENT_EMAIL=${{ secrets.FIREBASE_CLIENT_EMAIL }}
