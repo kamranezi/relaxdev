@@ -10,28 +10,41 @@ RUN npm ci
 FROM base AS builder
 WORKDIR /app
 
-# Build arguments (только публичные переменные)
+# 👇 Принимаем build arguments
 ARG NEXTAUTH_URL
 ARG NEXT_PUBLIC_API_URL
 
-# Environment для сборки
+# 👇 Устанавливаем как ENV для Next.js
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
-# ⭐ Заглушки для NextAuth (минимум 32 символа)
-ENV GITHUB_ID="Ov23liStubClientIdForBuildOnly"
-ENV GITHUB_SECRET="stub_github_client_secret_for_build_time_only_32chars"
-ENV GOOGLE_CLIENT_ID="123456789-stub_google_client_id_for_build.apps.googleusercontent.com"
-ENV GOOGLE_CLIENT_SECRET="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_time"
-ENV NEXTAUTH_SECRET="stub-nextauth-secret-minimum-32-characters-long-for-build-only-12345"
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
 
-# ⭐ Заглушки для Firebase
-ENV FIREBASE_PROJECT_ID="stub-project"
-ENV FIREBASE_CLIENT_EMAIL="stub@stub.iam.gserviceaccount.com"
-ENV FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7VJTUt9Us8cKj\nMzEfYyjiWA4R4/M2bS1+fWIcPm15j9M0XmaCXj3K\n-----END PRIVATE KEY-----"
-ENV FIREBASE_DATABASE_URL="https://stub-project.firebaseio.com"
+# Сборка с обработкой ошибок
+RUN npm run build 2>&1 | tee /tmp/build.log || \
+    (echo "Build failed:" && cat /tmp/build.log && exit 1)
 
-# ⭐ Заглушки для Yandex Cloud
-ENV YC_FOLDER_ID
+# 3. Запуск
+FROM base AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+COPY --from=builder /app/public ./public
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+
+USER nextjs
+
+EXPOSE 8080
+ENV PORT=8080
+ENV HOSTNAME="0.0.0.0"
+
+CMD ["node", "server.js"]

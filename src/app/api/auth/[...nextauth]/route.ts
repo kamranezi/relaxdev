@@ -2,9 +2,8 @@ import NextAuth, { AuthOptions, Session } from "next-auth";
 import { JWT } from "next-auth/jwt";
 import GithubProvider from "next-auth/providers/github";
 import GoogleProvider from "next-auth/providers/google";
-import { db } from "@/lib/firebase";
+import { db } from "@/lib/firebase"; 
 
-// 1. Экспортируем настройки (authOptions) отдельно
 export const authOptions: AuthOptions = {
   providers: [
     GithubProvider({
@@ -26,11 +25,9 @@ export const authOptions: AuthOptions = {
       if (account && user && user.email) {
         token.accessToken = account.access_token;
         
-        // Получаем login из profile (для GitHub) или из email
         const profileAny = profile as { login?: string; username?: string };
         const userLogin = profileAny?.login || profileAny?.username || user.email.split('@')[0];
         
-        // Сохраняем пользователя в Firebase при первом логине
         try {
           const userRef = db.ref(`users/${user.email.replace(/\./g, '_')}`);
           const userData = {
@@ -46,10 +43,8 @@ export const authOptions: AuthOptions = {
           
           const snapshot = await userRef.once('value');
           if (!snapshot.exists()) {
-            // Пользователь новый, создаем запись
             await userRef.set(userData);
           } else {
-            // Обновляем существующего пользователя
             await userRef.update({
               ...userData,
               updatedAt: new Date().toISOString(),
@@ -59,7 +54,6 @@ export const authOptions: AuthOptions = {
           console.error('Ошибка сохранения пользователя в Firebase:', error);
         }
         
-        // Сохраняем email и login для использования в сессии
         token.email = user.email;
         token.login = userLogin;
       }
@@ -67,7 +61,6 @@ export const authOptions: AuthOptions = {
     },
     async session({ session, token }: { session: Session; token: JWT }) {
       session.accessToken = token.accessToken;
-      // Добавляем email и login пользователя в сессию
       if (session.user) {
         session.user.email = token.email || session.user.email;
         session.user.login = token.login || token.sub;
@@ -80,5 +73,4 @@ export const authOptions: AuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-// 2. Экспортируем GET и POST для работы роутинга
 export { handler as GET, handler as POST };
