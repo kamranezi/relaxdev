@@ -21,10 +21,10 @@ jobs:
       # 2. Установка YC CLI
       - name: Install YC CLI
         run: |
-          curl https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash
           sudo ln -s /home/runner/yandex-cloud/bin/yc /usr/bin/yc
 
-      # 3. Настройка профиля YC (ИСПРАВЛЕНО: безопасная передача ключа)
+      # 3. Настройка профиля YC
       - name: Authenticate YC CLI
         env:
           YC_KEY: ${{ secrets.YC_SA_KEY_JSON }}
@@ -33,20 +33,42 @@ jobs:
           yc config profile create sa-profile
           yc config set service-account-key key.json
           yc config set folder-id ${{ secrets.YC_FOLDER_ID }}
+          rm -f key.json  # Удаляем ключ после использования
 
-      # 4. Сборка и отправка образа
+      # 4. Сборка и отправка образа (ИСПРАВЛЕНО)
       - name: Build and Push
+        env:
+          # Build-time переменные (NEXT_PUBLIC_*)
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          NEXT_PUBLIC_API_URL: ${{ secrets.NEXTAUTH_URL }}
         run: |
           IMAGE_URI="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/ruvercel-dashboard:${{ github.sha }}"
           
-          docker build -t $IMAGE_URI .
+          echo "🔨 Building Docker image..."
+          docker build \
+            --progress=plain \
+            --build-arg NEXTAUTH_URL="${NEXTAUTH_URL}" \
+            --build-arg NEXT_PUBLIC_API_URL="${NEXT_PUBLIC_API_URL}" \
+            -t $IMAGE_URI . 2>&1 | tee build.log
+          
+          # Проверка успешности сборки
+          if [ ${PIPESTATUS[0]} -ne 0 ]; then
+            echo "❌ Build failed! Last 50 lines:"
+            tail -50 build.log
+            exit 1
+          fi
+          
+          echo "📦 Pushing image to registry..."
           docker push $IMAGE_URI
           
           echo "IMAGE_URI=$IMAGE_URI" >> $GITHUB_ENV
+          echo "✅ Image pushed: $IMAGE_URI"
 
-      # 5. Обновление контейнера (ДОБАВЛЕНЫ ПЕРЕМЕННЫЕ)
+      # 5. Обновление контейнера (ИСПРАВЛЕНО: переменные в правильном формате)
       - name: Deploy Revision
         run: |
+          echo "🚀 Deploying new revision..."
+          
           yc serverless container revision deploy \
             --container-name ruvercel-frontend \
             --folder-id ${{ secrets.YC_FOLDER_ID }} \
@@ -55,4 +77,24 @@ jobs:
             --cores 1 \
             --memory 512M \
             --execution-timeout 30s \
-            --environment YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},YC_REGISTRY_ID=${{ secrets.YC_REGISTRY_ID }},YC_SA_ID=${{ secrets.YC_SA_ID }},GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},BUILDER_REPO_OWNER=kamranezi,BUILDER_REPO_NAME=ruvercel-builder,GITHUB_ID=${{ secrets.GH_OAUTH_ID }},GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }}
+            --environment \
+              YC_FOLDER_ID=${{ secrets.YC_FOLDER_ID }},\
+              YC_REGISTRY_ID=${{ secrets.YC_REGISTRY_ID }},\
+              YC_SA_ID=${{ secrets.YC_SA_ID }},\
+              GITHUB_ACCESS_TOKEN=${{ secrets.GH_PAT }},\
+              BUILDER_REPO_OWNER=kamranezi,\
+              BUILDER_REPO_NAME=ruvercel-builder,\
+              GITHUB_ID=${{ secrets.GH_OAUTH_ID }},\
+              GITHUB_SECRET=${{ secrets.GH_OAUTH_SECRET }},\
+              NEXTAUTH_SECRET=${{ secrets.NEXTAUTH_SECRET }},\
+              NEXTAUTH_URL=${{ secrets.NEXTAUTH_URL }},\
+              NODE_ENV=production
+          
+          echo "✅ Deployment complete!"
+
+      # 6. Очистка (опционально)
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -f key.json
+          docker system prune -f
