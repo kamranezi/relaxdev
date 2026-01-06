@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useSession } from 'next-auth/react';
+import { useAuth } from '@/components/AuthProvider';
 import { Project } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,7 +44,7 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { data: session } = useSession();
+  const { user } = useAuth();
   const [language, setLanguage] = useState<Language>('ru');
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -59,9 +59,13 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
 
   const fetchProject = useCallback(async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${projectId}`);
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/projects/${projectId}`, {
+        headers: { 'Authorization': `Bearer ${idToken}` }
+      });
       if (res.ok) {
         const data = await res.json();
         setProject(data);
@@ -73,20 +77,22 @@ export default function ProjectDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, router]);
+  }, [projectId, router, user]);
 
   useEffect(() => {
-    if (projectId && session) {
+    if (projectId && user) {
       fetchProject();
     }
-  }, [projectId, session, fetchProject]);
+  }, [projectId, user, fetchProject]);
 
   const handleRedeploy = async () => {
-    if (!project) return;
+    if (!project || !user) return;
     setIsRedeploying(true);
     try {
+      const idToken = await user.getIdToken();
       const res = await fetch(`/api/projects/${projectId}/redeploy`, {
         method: 'POST',
+        headers: { 'Authorization': `Bearer ${idToken}` }
       });
       if (res.ok) {
         await fetchProject();
@@ -101,13 +107,15 @@ export default function ProjectDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этот проект?' : 'Are you sure you want to delete this project?')) {
+    if (!user || !confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этот проект?' : 'Are you sure you want to delete this project?')) {
       return;
     }
     setIsDeleting(true);
     try {
+      const idToken = await user.getIdToken();
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${idToken}` }
       });
       if (res.ok) {
         router.push('/');
@@ -121,13 +129,17 @@ export default function ProjectDetailPage() {
   };
 
   const handleAddEnvVar = async () => {
-    if (!project || !newEnvKey.trim() || !newEnvValue.trim()) return;
+    if (!project || !newEnvKey.trim() || !newEnvValue.trim() || !user) return;
     setIsSaving(true);
     try {
+      const idToken = await user.getIdToken();
       const updatedEnvVars = [...(project.envVars || []), { key: newEnvKey.trim(), value: newEnvValue.trim() }];
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
         body: JSON.stringify({ envVars: updatedEnvVars }),
       });
       if (res.ok) {
@@ -144,13 +156,17 @@ export default function ProjectDetailPage() {
   };
 
   const handleRemoveEnvVar = async (index: number) => {
-    if (!project) return;
+    if (!project || !user) return;
     setIsSaving(true);
     try {
+      const idToken = await user.getIdToken();
       const updatedEnvVars = (project.envVars || []).filter((_, i) => i !== index);
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}` 
+        },
         body: JSON.stringify({ envVars: updatedEnvVars }),
       });
       if (res.ok) {
