@@ -244,61 +244,61 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="min-h-screen bg-[#0A0A0A] text-gray-300">
-      <div className="max-w-6xl mx-auto p-4 md:p-8">
+      <main className="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
         <Button
           variant="ghost"
           onClick={() => router.push('/')}
-          className="mb-6 text-gray-400 hover:text-white"
+          className="mb-4 md:mb-6 text-gray-400 hover:text-white pl-0"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           {language === 'ru' ? 'Назад' : 'Back'}
         </Button>
 
-        <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-6 mb-6">
-          <div className="flex items-start justify-between mb-6">
+        <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-4 sm:p-6 mb-6">
+          <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-4">
             <div className="flex-1">
-              <div className="flex items-center gap-3 mb-2">
-                <h1 className="text-3xl font-bold text-white">{project.name}</h1>
-                <span className={`px-3 py-1 rounded-full text-sm flex items-center gap-2 ${statusConfig.color} ${statusConfig.bgColor}`}>
+              <div className="flex items-start sm:items-center gap-3 mb-2 flex-wrap">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white break-all">{project.name}</h1>
+                <span className={`px-3 py-1 rounded-full text-xs sm:text-sm flex items-center gap-2 ${statusConfig.color} ${statusConfig.bgColor} flex-shrink-0`}>
                   <StatusIcon className={`h-4 w-4 ${statusConfig.animate ? 'animate-spin' : ''}`} />
                   {statusConfig.text}
                 </span>
               </div>
-              <div className="flex items-center gap-4 text-sm text-gray-400">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-400">
                 <a
                   href={project.repoUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-2 hover:text-white transition-colors"
+                  className="flex items-center gap-2 hover:text-white transition-colors truncate"
                 >
-                  <GithubIcon className="h-4 w-4" />
-                  {project.repoUrl.replace('https://github.com/', '')}
+                  <GithubIcon className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">{project.repoUrl.replace('https://github.com/', '')}</span>
                 </a>
                 {project.domain && (
                   <a
                     href={domainUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-2 hover:text-cyan-400 transition-colors"
+                    className="flex items-center gap-2 hover:text-cyan-400 transition-colors truncate"
                   >
-                    <ExternalLink className="h-4 w-4" />
-                    {project.domain}
+                    <ExternalLink className="h-4 w-4 flex-shrink-0" />
+                    <span className="truncate">{project.domain}</span>
                   </a>
                 )}
               </div>
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full md:w-auto">
               <Button
                 onClick={handleRedeploy}
                 disabled={isRedeploying}
-                className="bg-white text-black hover:bg-gray-200"
+                className="bg-white text-black hover:bg-gray-200 flex-1 md:flex-initial"
               >
                 {isRedeploying ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    {language === 'ru' ? 'Редеплой' : 'Redeploy'}
+                    <RefreshCw className="h-4 w-4 mr-0 md:mr-2" />
+                    <span className="hidden md:inline">{language === 'ru' ? 'Редеплой' : 'Redeploy'}</span>
                   </>
                 )}
               </Button>
@@ -306,13 +306,14 @@ export default function ProjectDetailPage() {
                 onClick={handleDelete}
                 disabled={isDeleting}
                 variant="destructive"
+                className="flex-1 md:flex-initial"
               >
                 {isDeleting ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    {language === 'ru' ? 'Удалить' : 'Delete'}
+                    <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
+                    <span className="hidden md:inline">{language === 'ru' ? 'Удалить' : 'Delete'}</span>
                   </>
                 )}
               </Button>
@@ -320,7 +321,7 @@ export default function ProjectDetailPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="bg-black/50">
+            <TabsList className="grid grid-cols-3 sm:inline-grid sm:grid-cols-3 bg-black/50 w-full sm:w-auto">
               <TabsTrigger value="overview">{t.overview}</TabsTrigger>
               <TabsTrigger value="env">{t.envVars}</TabsTrigger>
               <TabsTrigger value="logs">{t.logs}</TabsTrigger>
@@ -331,7 +332,7 @@ export default function ProjectDetailPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">{t.owner}</div>
-                    <div className="text-white">{project.owner}</div>
+                    <div className="text-white truncate">{project.owner}</div>
                   </div>
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">{t.lastDeployed}</div>
@@ -347,7 +348,7 @@ export default function ProjectDetailPage() {
                   </div>
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">{t.domain}</div>
-                    <div className="text-white font-mono text-sm">{project.domain}</div>
+                    <div className="text-white font-mono text-sm truncate">{project.domain}</div>
                   </div>
                 </div>
 
@@ -355,7 +356,7 @@ export default function ProjectDetailPage() {
                  (project.missingEnvVars && project.missingEnvVars.length > 0) ? (
                   <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4">
                     <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5" />
+                      <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
                       <div className="flex-1 space-y-2">
                         {project.buildErrors && project.buildErrors.length > 0 && (
                           <div>
@@ -364,7 +365,7 @@ export default function ProjectDetailPage() {
                             </div>
                             <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
                               {project.buildErrors.map((error, i) => (
-                                <li key={i}>{error}</li>
+                                <li key={i} className="break-words">{error}</li>
                               ))}
                             </ul>
                           </div>
@@ -394,17 +395,12 @@ export default function ProjectDetailPage() {
                   <div className="text-sm font-medium text-gray-300 mb-3">
                     {t.addEnvVar}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col sm:flex-row gap-2">
                     <Input
                       value={newEnvKey}
                       onChange={(e) => setNewEnvKey(e.target.value)}
                       placeholder="KEY"
                       className="bg-black/50 border-gray-700"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
-                          handleAddEnvVar();
-                        }
-                      }}
                     />
                     <Input
                       value={newEnvValue}
@@ -412,21 +408,19 @@ export default function ProjectDetailPage() {
                       placeholder="VALUE"
                       className="bg-black/50 border-gray-700"
                       type="password"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
-                          handleAddEnvVar();
-                        }
-                      }}
                     />
                     <Button
                       onClick={handleAddEnvVar}
                       disabled={!newEnvKey.trim() || !newEnvValue.trim() || isSaving}
-                      className="bg-white text-black hover:bg-gray-200"
+                      className="bg-white text-black hover:bg-gray-200 flex-shrink-0"
                     >
                       {isSaving ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
-                        <Plus className="h-4 w-4" />
+                        <>
+                          <Plus className="h-4 w-4 md:mr-2" />
+                          <span className="hidden md:inline">{t.add}</span>
+                        </>
                       )}
                     </Button>
                   </div>
@@ -439,9 +433,9 @@ export default function ProjectDetailPage() {
                     </div>
                   ) : (
                     (project.envVars || []).map((envVar, index) => (
-                      <div key={index} className="bg-black/30 rounded-lg p-4 flex items-center justify-between">
-                        <div className="flex-1">
-                          <div className="font-mono text-sm text-blue-400 mb-1">{envVar.key}</div>
+                      <div key={index} className="bg-black/30 rounded-lg p-3 sm:p-4 flex items-center justify-between">
+                        <div className="flex-1 overflow-hidden">
+                          <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>
                           <div className="flex items-center gap-2">
                             <span className="text-green-400 font-mono text-xs">••••••••</span>
                             <Button
@@ -463,7 +457,7 @@ export default function ProjectDetailPage() {
                           size="sm"
                           onClick={() => handleRemoveEnvVar(index)}
                           disabled={isSaving}
-                          className="text-red-400 hover:text-red-300"
+                          className="text-red-400 hover:text-red-300 ml-2"
                         >
                           <X className="h-4 w-4" />
                         </Button>
@@ -475,15 +469,15 @@ export default function ProjectDetailPage() {
             </TabsContent>
 
             <TabsContent value="logs" className="mt-6">
-              <div className="bg-black/30 rounded-lg p-4">
-                <div className="font-mono text-xs text-gray-300 whitespace-pre-wrap">
+              <div className="bg-black/30 rounded-lg p-4 overflow-x-auto">
+                <pre className="font-mono text-xs text-gray-300 whitespace-pre">
                   {project.deploymentLogs || t.noLogs}
-                </div>
+                </pre>
               </div>
             </TabsContent>
           </Tabs>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

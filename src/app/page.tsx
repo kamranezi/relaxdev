@@ -140,7 +140,7 @@ export default function Home() {
     <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-gray-300 font-sans">
       <header className="flex items-center justify-between p-4 md:p-6 border-b border-gray-800 w-full">
         <div className="flex items-center space-x-3 md:space-x-4">
-          <Layers className="h-8 w-8 text-white" />
+          <Layers className="h-7 w-7 md:h-8 md:w-8 text-white" />
           <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-200 to-gray-400 bg-clip-text text-transparent">
             Relax Dev
           </h1>
@@ -186,7 +186,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1 p-4 md:p-8">
+      <main className="flex-1 w-full max-w-7xl mx-auto p-4 md:p-8">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl md:text-3xl font-bold text-white">
@@ -213,9 +213,9 @@ export default function Home() {
 
         {(!user && !authLoading) ? (
             <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Layers className="h-16 w-16 text-gray-600 mb-4" />
-                <h3 className="text-xl font-semibold text-gray-400 mb-2">Войдите, чтобы увидеть проекты</h3>
-                <p className="text-gray-500 mb-6">Авторизуйтесь через GitHub, чтобы начать управлять вашими проектами.</p>
+                <Layers className="h-14 w-14 sm:h-16 sm:w-16 text-gray-600 mb-4" />
+                <h3 className="text-lg sm:text-xl font-semibold text-gray-400 mb-2">Войдите, чтобы увидеть проекты</h3>
+                <p className="text-gray-500 mb-6 max-w-md">Авторизуйтесь через GitHub, чтобы начать управлять вашими проектами.</p>
                 <Button 
                     onClick={signInWithGitHub} 
                     className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
@@ -225,11 +225,11 @@ export default function Home() {
             </div>
         ) : projects.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Layers className="h-16 w-16 text-gray-600 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-400 mb-2">
+            <Layers className="h-14 w-14 sm:h-16 sm:w-16 text-gray-600 mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-400 mb-2">
               {t.noProjectsTitle}
             </h3>
-            <p className="text-gray-500 mb-6">
+            <p className="text-gray-500 mb-6 max-w-sm">
               {t.noProjectsDescription}
             </p>
             <Button onClick={handleAddProjectClick} className="bg-white text-black hover:bg-gray-200">
@@ -251,7 +251,7 @@ export default function Home() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
             {projects.map((project) => (
               <ProjectCard
                 key={project.id}
