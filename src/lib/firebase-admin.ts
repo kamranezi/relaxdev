@@ -1,32 +1,9 @@
 import * as admin from 'firebase-admin';
 
-// Функция для безопасного парсинга JSON
-const safeJsonParse = (jsonString: string) => {
-  try {
-    return JSON.parse(jsonString);
-  } catch (e) {
-    return null;
-  }
-};
-
 if (!admin.apps.length) {
-  let privateKeyEnv = process.env.FIREBASE_PRIVATE_KEY || '';
-  let privateKey;
 
-  // В некоторых окружениях (например, GitHub Actions) ключ может быть уже в формате JSON-строки.
-  // В других (Yandex Cloud) - это может быть просто строка, которую нужно обработать.
-  if (privateKeyEnv.startsWith('{')) { // Простой эвристический способ проверить, является ли это JSON
-      const parsedKey = safeJsonParse(privateKeyEnv);
-      if (parsedKey && parsedKey.private_key) {
-          privateKey = parsedKey.private_key.replace(/\\n/g, '\n');
-      } else {
-        // Если парсинг не удался, возвращаемся к старому методу
-        privateKey = privateKeyEnv.replace(/\\n/g, '\n');
-      }
-  } else {
-      // Если это не JSON, заменяем \n на реальные переносы строк, как и раньше.
-      privateKey = privateKeyEnv.replace(/\\n/g, '\n');
-  }
+  // Надежно исправляем приватный ключ, заменяя эскейп-последовательности на реальные переносы строк
+  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
 
   const serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,
@@ -34,14 +11,24 @@ if (!admin.apps.length) {
     privateKey: privateKey,
   };
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Жестко кодируем URL, чтобы исправить ошибку сборки.
-    databaseURL: "https://relaxdev-af44c-default-rtdb.europe-west1.firebasedatabase.app",
-  });
+  try {
+    admin.initializeApp({
+        credential: admin.credential.cert(serviceAccount),
+        databaseURL: process.env.FIREBASE_DATABASE_URL,
+    });
+    console.log('Firebase Admin SDK initialized successfully.');
+  } catch (error: any) {
+    console.error('Firebase Admin SDK initialization error:', error.message);
+    // Вывод дополнительной информации для отладки
+    if (error.code === 'app/invalid-credential') {
+      console.error('Detail: The service account credential is not valid. This is often caused by a malformed private key.');
+      console.error(`Project ID from env: ${process.env.FIREBASE_PROJECT_ID}`);
+      console.error(`Client Email from env: ${process.env.FIREBASE_CLIENT_EMAIL}`);
+    }
+  }
 }
 
-const db = admin.database();
-const adminAuth = admin.auth();
+const db = admin.apps.length ? admin.database() : null;
+const adminAuth = admin.apps.length ? admin.auth() : null;
 
 export { db, adminAuth };
