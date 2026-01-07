@@ -11,6 +11,12 @@ const safeJsonParse = (jsonString: string) => {
 
 if (!admin.apps.length) {
   let privateKeyEnv = process.env.FIREBASE_PRIVATE_KEY || '';
+  
+  // Удаляем кавычки в начале и конце строки, если они есть
+  if (privateKeyEnv.startsWith('"') && privateKeyEnv.endsWith('"')) {
+    privateKeyEnv = privateKeyEnv.substring(1, privateKeyEnv.length - 1);
+  }
+
   let privateKey;
 
   // В некоторых окружениях (например, GitHub Actions) ключ может быть уже в формате JSON-строки.
