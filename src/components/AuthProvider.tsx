@@ -16,9 +16,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const auth = getAuth(app);
 
 // Функция для отправки данных на бэкенд
-async function postAuthData(user: User) {
+async function postAuthData(user: User, githubToken?: string) {
   const idToken = await user.getIdToken();
-  const accessToken = (user as any).stsTokenManager?.accessToken;
+
+  if (!githubToken) {
+      console.error('GitHub Access Token not available after sign-in.');
+      return;
+  }
 
   const response = await fetch('/api/auth', {
     method: 'POST',
@@ -28,7 +32,7 @@ async function postAuthData(user: User) {
     body: JSON.stringify({
       idToken,
       provider: 'github.com',
-      accessToken,
+      accessToken: githubToken, // Отправляем токен доступа GitHub
     }),
   });
 
@@ -57,10 +61,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signInWithGitHub = async () => {
     setLoading(true);
     try {
-      const result = await signInWithPopup(auth, new GithubAuthProvider());
-      if (result.user) {
+      const provider = new GithubAuthProvider();
+      // Запрашиваем права на доступ к репозиториям
+      provider.addScope('repo'); 
+
+      const result = await signInWithPopup(auth, provider);
+      const credential = GithubAuthProvider.credentialFromResult(result);
+      const githubToken = credential?.accessToken;
+
+      if (result.user && githubToken) {
         console.log(`Signed in with GitHub. Posting data to backend...`);
-        await postAuthData(result.user);
+        await postAuthData(result.user, githubToken);
       }
     } catch (error: any) {
       console.error("Authentication error:", error);
