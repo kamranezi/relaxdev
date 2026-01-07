@@ -3,8 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Image from 'next/image';
 import { useAuth } from '@/components/AuthProvider';
-import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut as firebaseSignOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase-client';
 import { Project } from '@/types';
 import { getTranslation, Language } from '@/lib/i18n';
 import { ProjectCard } from '@/components/ProjectCard';
@@ -14,52 +12,33 @@ import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user, loading: authLoading, signInWithGitHub, signInWithGoogle, signOut } = useAuth();
   const [language, setLanguage] = useState<Language>('ru');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const t = getTranslation(language);
-
-  const handleSignIn = async (provider: 'google' | 'github') => {
-    const authProvider = provider === 'google' ? new GoogleAuthProvider() : new GithubAuthProvider();
-    try {
-      const result = await signInWithPopup(auth, authProvider);
-      const idToken = await result.user.getIdToken();
-      
-      let accessToken: string | undefined;
-      if (provider === 'github') {
-        const credential = GithubAuthProvider.credentialFromResult(result);
-        accessToken = credential?.accessToken;
-      }
-
-      await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, provider, accessToken }),
-      });
-    } catch (error) {
-      console.error("Authentication error:", error);
-    }
-  };
-
-  const handleSignOut = async () => {
-    await firebaseSignOut(auth);
-  };
   
   const handleAddProjectClick = () => {
     if (user) {
       setIsModalOpen(true);
     } else {
-      handleSignIn('github');
+      signInWithGitHub();
     }
   };
 
   const fetchProjects = useCallback(async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
-      const res = await fetch('/api/projects');
+      const token = await user.getIdToken();
+      const res = await fetch('/api/projects', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        }
+      });
+
       if (res.ok) {
         const apiProjects = await res.json();
         const validApiProjects = Array.isArray(apiProjects) ? apiProjects : [];
@@ -78,13 +57,18 @@ export default function Home() {
             new Date(b.lastDeployed).getTime() - new Date(a.lastDeployed).getTime()
           );
         });
+      } else if (res.status === 401) {
+        // Если токен истек или невалиден, можно попробовать его обновить или попросить пользователя перелогиниться
+        console.error('Auth error, please sign in again.');
+        signOut(); // Например, выходим из системы
       }
+
     } catch (e) {
       console.error('Ошибка загрузки проектов:', e);
     } finally {
       setIsLoading(false);
     }
-  }, [t.status.building]);
+  }, [user, t.status.building, signOut]);
 
   useEffect(() => {
     if (user) {
@@ -114,28 +98,33 @@ export default function Home() {
   };
 
   const handleDeploy = async (gitUrl: string, projectName: string, gitToken?: string, envVars?: { key: string; value: string }[]) => {
+    if (!user) throw new Error('User not authenticated');
     try {
-      const response = await fetch('/api/deploy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gitUrl, projectName, gitToken, envVars }),
-      });
+        const token = await user.getIdToken();
+        const response = await fetch('/api/deploy', {
+            method: 'POST',
+            headers: { 
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({ gitUrl, projectName, gitToken, envVars }),
+        });
 
-      if (!response.ok) throw new Error('Deployment failed');
+        if (!response.ok) throw new Error('Deployment failed');
 
-      const newProject = await response.json();
-      
-      const localizedProject: Project = {
-        ...newProject,
-        status: t.status.building,
-        lastDeployed: new Date().toISOString(),
-      };
+        const newProject = await response.json();
+        
+        const localizedProject: Project = {
+            ...newProject,
+            status: t.status.building,
+            lastDeployed: new Date().toISOString(),
+        };
 
-      setProjects((prev) => [localizedProject, ...prev]);
-      setTimeout(fetchProjects, 3000); 
+        setProjects((prev) => [localizedProject, ...prev]);
+        setTimeout(fetchProjects, 3000); 
     } catch (error) {
-      console.error('Deploy error:', error);
-      throw error;
+        console.error('Deploy error:', error);
+        throw error;
     }
   };
 
@@ -171,7 +160,7 @@ export default function Home() {
               )}
               <Button 
                 variant="ghost" 
-                onClick={handleSignOut} 
+                onClick={signOut} 
                 className="text-xs text-gray-400 hover:text-white px-2"
               >
                 {t.signout}
@@ -179,10 +168,10 @@ export default function Home() {
             </div>
           ) : (
             <div className="flex items-center space-x-2">
-              <Button onClick={() => handleSignIn('github')} className="bg-white text-black hover:bg-gray-200 ml-2">
+               <Button onClick={signInWithGitHub} className="bg-white text-black hover:bg-gray-200 ml-2">
                 {t.signin}
               </Button>
-              <Button onClick={() => handleSignIn('google')} className="bg-red-500 text-white hover:bg-red-600 ml-2">
+              <Button onClick={signInWithGoogle} className="bg-red-500 text-white hover:bg-red-600 ml-2">
                 Sign in with Google
               </Button>
             </div>
@@ -199,11 +188,11 @@ export default function Home() {
             </h2>
             <button 
               onClick={fetchProjects} 
-              disabled={isLoading} 
+              disabled={isLoading || authLoading}
               className="p-2 hover:bg-gray-800 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               title="Обновить список"
             >
-              <RefreshCw className={`h-5 w-5 ${isLoading ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-5 w-5 ${isLoading || authLoading ? 'animate-spin' : ''}`} />
             </button>
           </div>
           
@@ -216,7 +205,7 @@ export default function Home() {
           </Button>
         </div>
 
-        {projects.length === 0 && !isLoading ? (
+        {(projects.length === 0 && !isLoading) && (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="h-16 w-16 text-gray-600 mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">
@@ -230,6 +219,21 @@ export default function Home() {
               {t.addProject}
             </Button>
           </div>
+        )}
+
+        { (isLoading || authLoading) && projects.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+            {[...Array(3)].map((_, i) => (
+                <div key={i} className="bg-gray-800/50 rounded-lg p-6 animate-pulse">
+                    <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
+                    <div className="h-4 bg-gray-700 rounded w-1/2 mb-6"></div>
+                    <div className="flex items-center justify-between">
+                        <div className="h-4 bg-gray-700 rounded w-1/4"></div>
+                        <div className="h-8 w-8 bg-gray-700 rounded-full"></div>
+                    </div>
+                </div>
+            ))}
+          </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {projects.map((project) => (
@@ -240,6 +244,7 @@ export default function Home() {
                   lastDeployed: formatTimeAgo(project.lastDeployed),
                 }}
                 language={language}
+                onRedeploy={fetchProjects} // Передаем функцию для обновления
               />
             ))}
           </div>
