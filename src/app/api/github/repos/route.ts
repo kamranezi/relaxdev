@@ -10,6 +10,14 @@ const cache = new Map();
 export async function GET(req: Request) {
   console.log('[API /github/repos] Received request');
   try {
+    if (!db || !adminAuth) {
+      console.error("Firebase Admin SDK not initialized");
+      return NextResponse.json(
+          { error: "Internal Server Error: Firebase not initialized." },
+          { status: 500 }
+      );
+    }
+
     const idToken = req.headers.get('Authorization')?.split('Bearer ')[1];
     if (!idToken) {
       console.log('[API /github/repos] Error: No authorization token found.');
@@ -69,8 +77,11 @@ export async function GET(req: Request) {
     return NextResponse.json(repos);
 
   } catch (error) {
-    console.error('[API /github/repos] CATCH BLOCK: An error occurred.', error);
-    const message = error instanceof Error ? error.message : 'Failed to fetch repositories';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('[API /github/repos] Error:', error);
+    const message = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { error: message },
+      { status: 500 }
+    );
   }
 }
