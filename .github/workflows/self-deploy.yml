@@ -49,6 +49,7 @@ jobs:
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          WEBHOOK_SECRET: ${{ secrets.WEBHOOK_SECRET }}
         run: |
           IMAGE_URI="cr.yandex/${{ secrets.YC_REGISTRY_ID }}/ruvercel-dashboard:${{ github.sha }}"
           
@@ -66,6 +67,7 @@ jobs:
             --build-arg GOOGLE_CLIENT_ID \
             --build-arg GOOGLE_CLIENT_SECRET \
             --build-arg NEXTAUTH_SECRET \
+            --build-arg WEBHOOK_SECRET \
             -t $IMAGE_URI . 2>&1 | tee build.log
           
           if [ ${PIPESTATUS[0]} -ne 0 ]; then
