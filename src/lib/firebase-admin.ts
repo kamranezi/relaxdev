@@ -10,18 +10,22 @@ const safeJsonParse = (jsonString: string) => {
 };
 
 if (!admin.apps.length) {
-  let privateKey = process.env.FIREBASE_PRIVATE_KEY || '';
+  let privateKeyEnv = process.env.FIREBASE_PRIVATE_KEY || '';
+  let privateKey;
 
   // В некоторых окружениях (например, GitHub Actions) ключ может быть уже в формате JSON-строки.
   // В других (Yandex Cloud) - это может быть просто строка, которую нужно обработать.
-  if (privateKey.startsWith('{')) { // Простой эвристический способ проверить, является ли это JSON
-      const parsedKey = safeJsonParse(privateKey);
+  if (privateKeyEnv.startsWith('{')) { // Простой эвристический способ проверить, является ли это JSON
+      const parsedKey = safeJsonParse(privateKeyEnv);
       if (parsedKey && parsedKey.private_key) {
-          privateKey = parsedKey.private_key;
+          privateKey = parsedKey.private_key.replace(/\\n/g, '\n');
+      } else {
+        // Если парсинг не удался, возвращаемся к старому методу
+        privateKey = privateKeyEnv.replace(/\\n/g, '\n');
       }
   } else {
       // Если это не JSON, заменяем \n на реальные переносы строк, как и раньше.
-      privateKey = privateKey.replace(/\\n/g, '\n');
+      privateKey = privateKeyEnv.replace(/\\n/g, '\n');
   }
 
   const serviceAccount = {
@@ -31,11 +35,7 @@ if (!admin.apps.length) {
   };
 
   admin.initializeApp({
-    credential: admin.credential.cert({
-      projectId: process.env.FIREBASE_PROJECT_ID,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    }),
+    credential: admin.credential.cert(serviceAccount),
     // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Жестко кодируем URL, чтобы исправить ошибку сборки.
     databaseURL: "https://relaxdev-af44c-default-rtdb.europe-west1.firebasedatabase.app",
   });
