@@ -4,6 +4,14 @@ import { db, adminAuth } from "@/lib/firebase-admin";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!db || !adminAuth) {
+      console.error("Firebase Admin SDK not initialized");
+      return NextResponse.json(
+          { error: "Internal Server Error: Firebase not initialized." },
+          { status: 500 }
+      );
+    }
+    
     const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
     if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
