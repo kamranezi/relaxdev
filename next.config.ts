@@ -9,11 +9,31 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
 
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups',
+          },
+        ],
+      },
+    ];
+  },
+
   images: {
     remotePatterns: [
       {
         protocol: "https",
         hostname: "avatars.githubusercontent.com",
+        port: "",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "lh3.googleusercontent.com",
         port: "",
         pathname: "/**",
       },

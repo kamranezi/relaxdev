@@ -1,8 +1,11 @@
 import { NextResponse } from 'next/server';
 import { adminAuth, db } from '@/lib/firebase-admin';
-import { Octokit } from "@octokit/rest";
+import { Octokit } from '@octokit/rest';
 
 export const dynamic = 'force-dynamic';
+
+// Простая реализация кэша в памяти
+const cache = new Map();
 
 export async function GET(req: Request) {
   console.log('[API /github/repos] Received request');
@@ -12,11 +15,21 @@ export async function GET(req: Request) {
       console.log('[API /github/repos] Error: No authorization token found.');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     console.log('[API /github/repos] Verifying Firebase ID token...');
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     console.log(`[API /github/repos] Token verified for UID: ${uid}`);
+
+    // Проверяем кэш
+    if (cache.has(uid)) {
+      const cachedData = cache.get(uid);
+      // Устанавливаем срок действия кэша (например, 5 минут)
+      if (Date.now() - cachedData.timestamp < 5 * 60 * 1000) {
+        console.log(`[API /github/repos] Returning cached data for UID: ${uid}`);
+        return NextResponse.json(cachedData.data);
+      }
+    }
 
     console.log(`[API /github/repos] Fetching GitHub token from RTDB for UID: ${uid}`);
     const userRef = db.ref(`users/${uid}`);
@@ -35,7 +48,7 @@ export async function GET(req: Request) {
     const { data } = await octokit.repos.listForAuthenticatedUser({
       sort: 'updated',
       direction: 'desc',
-      per_page: 100,
+      per_page: 50, // Ограничиваем количество репозиториев
       visibility: 'all',
     });
     console.log(`[API /github/repos] Successfully fetched ${data.length} repos from GitHub.`);
@@ -48,6 +61,9 @@ export async function GET(req: Request) {
       private: repo.private,    
       updated_at: repo.updated_at,
     }));
+
+    // Кэшируем результат
+    cache.set(uid, { timestamp: Date.now(), data: repos });
 
     console.log('[API /github/repos] Sending response.');
     return NextResponse.json(repos);
