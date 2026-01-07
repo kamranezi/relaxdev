@@ -1,13 +1,12 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User, getAuth, signInWithPopup, GoogleAuthProvider, GithubAuthProvider, signOut as firebaseSignOut } from 'firebase/auth';
+import { onAuthStateChanged, User, getAuth, signInWithPopup, GithubAuthProvider, signOut as firebaseSignOut } from 'firebase/auth';
 import { app } from '@/lib/firebase-client';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -17,16 +16,9 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const auth = getAuth(app);
 
 // Функция для отправки данных на бэкенд
-async function postAuthData(user: User, providerId?: string) {
+async function postAuthData(user: User) {
   const idToken = await user.getIdToken();
-  let accessToken: string | undefined;
-
-  // Этот хак нужен, чтобы достать accessToken, Firebase SDK не предоставляет его легко
-  if (providerId === 'github.com' && user.providerData.length > 0) {
-      // В реальном приложении accessToken нужно получать более надежно
-      // но для текущей ситуации попробуем так. Это поле официально не документировано.
-      accessToken = (user as any).stsTokenManager?.accessToken;
-  }
+  const accessToken = (user as any).stsTokenManager?.accessToken;
 
   const response = await fetch('/api/auth', {
     method: 'POST',
@@ -35,8 +27,8 @@ async function postAuthData(user: User, providerId?: string) {
     },
     body: JSON.stringify({
       idToken,
-      provider: providerId,
-      ...(providerId === 'github.com' && { accessToken }),
+      provider: 'github.com',
+      accessToken,
     }),
   });
 
@@ -62,18 +54,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
-  const commonSignIn = async (provider: GoogleAuthProvider | GithubAuthProvider) => {
+  const signInWithGitHub = async () => {
     setLoading(true);
     try {
-      const result = await signInWithPopup(auth, provider);
-      const providerId = result.user.providerData[0]?.providerId;
+      const result = await signInWithPopup(auth, new GithubAuthProvider());
       if (result.user) {
-        console.log(`Signed in with ${providerId}. Posting data to backend...`);
-        await postAuthData(result.user, providerId);
+        console.log(`Signed in with GitHub. Posting data to backend...`);
+        await postAuthData(result.user);
       }
     } catch (error: any) {
       console.error("Authentication error:", error);
-      // ОБРАБОТКА ОШИБКИ, КАК ВЫ И ПРЕДЛОЖИЛИ
       if (error.code === 'auth/account-exists-with-different-credential') {
         alert('Аккаунт с таким email уже существует. Пожалуйста, войдите, используя способ, который вы использовали при первой регистрации.');
       } else {
@@ -83,9 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     }
   };
-
-  const signInWithGoogle = () => commonSignIn(new GoogleAuthProvider());
-  const signInWithGitHub = () => commonSignIn(new GithubAuthProvider());
 
   const signOut = async () => {
     setLoading(true);
@@ -99,9 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-
   return (
-    <AuthContext.Provider value={{ user, loading, signInWithGoogle, signInWithGitHub, signOut }}>
+    <AuthContext.Provider value={{ user, loading, signInWithGitHub, signOut }}>
       {children}
     </AuthContext.Provider>
   );

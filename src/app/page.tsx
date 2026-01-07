@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
 export default function Home() {
-  const { user, loading: authLoading, signInWithGitHub, signInWithGoogle, signOut } = useAuth();
+  const { user, loading: authLoading, signInWithGitHub, signOut } = useAuth();
   const [language, setLanguage] = useState<Language>('ru');
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -58,9 +58,8 @@ export default function Home() {
           );
         });
       } else if (res.status === 401) {
-        // Если токен истек или невалиден, можно попробовать его обновить или попросить пользователя перелогиниться
         console.error('Auth error, please sign in again.');
-        signOut(); // Например, выходим из системы
+        signOut(); 
       }
 
     } catch (e) {
@@ -167,14 +166,9 @@ export default function Home() {
               </Button>
             </div>
           ) : (
-            <div className="flex items-center space-x-2">
-               <Button onClick={signInWithGitHub} className="bg-white text-black hover:bg-gray-200 ml-2">
-                {t.signin}
-              </Button>
-              <Button onClick={signInWithGoogle} className="bg-red-500 text-white hover:bg-red-600 ml-2">
-                Sign in with Google
-              </Button>
-            </div>
+            <Button onClick={signInWithGitHub} className="bg-white text-black hover:bg-gray-200 ml-2">
+              {t.signin}
+            </Button>
           )}
 
         </div>
@@ -244,7 +238,7 @@ export default function Home() {
                   lastDeployed: formatTimeAgo(project.lastDeployed),
                 }}
                 language={language}
-                onRedeploy={fetchProjects} // Передаем функцию для обновления
+                onRedeploy={fetchProjects} 
               />
             ))}
           </div>
