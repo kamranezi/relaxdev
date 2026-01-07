@@ -23,10 +23,8 @@ async function postAuthData(user: User, providerId?: string) {
 
   // Этот хак нужен, чтобы достать accessToken, Firebase SDK не предоставляет его легко
   if (providerId === 'github.com' && user.providerData.length > 0) {
-      const githubData = user.providerData.find(p => p.providerId === 'github.com');
       // В реальном приложении accessToken нужно получать более надежно
-      // но для текущей ситуации попробуем так
-      // Это поле официально не документировано, может сломаться
+      // но для текущей ситуации попробуем так. Это поле официально не документировано.
       accessToken = (user as any).stsTokenManager?.accessToken;
   }
 
@@ -38,7 +36,6 @@ async function postAuthData(user: User, providerId?: string) {
     body: JSON.stringify({
       idToken,
       provider: providerId,
-      // Отправляем accessToken только для GitHub
       ...(providerId === 'github.com' && { accessToken }),
     }),
   });
@@ -74,8 +71,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         console.log(`Signed in with ${providerId}. Posting data to backend...`);
         await postAuthData(result.user, providerId);
       }
-    } catch (error) {
-      console.error("Authentication failed:", error);
+    } catch (error: any) {
+      console.error("Authentication error:", error);
+      // ОБРАБОТКА ОШИБКИ, КАК ВЫ И ПРЕДЛОЖИЛИ
+      if (error.code === 'auth/account-exists-with-different-credential') {
+        alert('Аккаунт с таким email уже существует. Пожалуйста, войдите, используя способ, который вы использовали при первой регистрации.');
+      } else {
+        alert(`Ошибка входа: ${error.message}`);
+      }
     } finally {
       setLoading(false);
     }
