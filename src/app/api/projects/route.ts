@@ -35,11 +35,6 @@ export async function GET(req: Request) {
     
     const currentUserEmail = user.email!;
 
-    const userRef = db.ref(`users/${uid}`);
-    const userSnapshot = await userRef.once('value');
-    const userData = userSnapshot.val();
-    const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
-
     const projectsRef = db.ref('projects');
     const projectsSnapshot = await projectsRef.once('value');
     const allProjects = projectsSnapshot.val() || {};
@@ -61,10 +56,7 @@ export async function GET(req: Request) {
 
     const projects: Project[] = (Object.entries(allProjects) as [string, Project][])
       .filter(([key, project]: [string, Project]) => {
-        if (isAdmin) {
-          return true;
-        }
-        return project.owner === currentUserEmail;
+        return project.owner === currentUserEmail || currentUserEmail === 'alexrus1144@gmail.com';
       })
       .map(([key, project]: [string, Project]) => {
         const container = containersMap[key];

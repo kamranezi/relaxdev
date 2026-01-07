@@ -10,12 +10,16 @@ export async function POST(
   try {
     const params = await context.params;
     const body = await request.json();
-    const { status, buildErrors, missingEnvVars, deploymentLogs } = body;
+    const { status, buildErrors, missingEnvVars, deploymentLogs, domain } = body;
 
     // Проверяем секретный ключ для безопасности (можно добавить в env)
     const secret = request.headers.get('x-webhook-secret');
     if (secret !== process.env.WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!db) {
+      return NextResponse.json({ error: 'Database connection not initialized' }, { status: 500 });
     }
 
     const projectRef = db.ref(`projects/${params.id}`);
@@ -51,6 +55,10 @@ export async function POST(
 
     if (deploymentLogs) {
       updates.deploymentLogs = deploymentLogs;
+    }
+
+    if (domain) {
+      updates.domain = domain;
     }
 
     await projectRef.update(updates);

@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { db, adminAuth } from "@/lib/firebase-admin";
+import { listContainers } from '@/lib/yandex';
 
 export const dynamic = 'force-dynamic';
+
+interface YandexContainer {
+  id: string;
+  name: string;
+  status: string;
+  createdAt: string;
+  url: string; 
+  labels: { [key: string]: string };
+}
 
 // GET - получить детальную информацию о проекте
 export async function GET(
@@ -15,15 +25,18 @@ export async function GET(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!db || !adminAuth) {
+      console.error("Firebase Admin SDK not initialized");
+      return NextResponse.json(
+          { error: "Internal Server Error: Firebase not initialized." },
+          { status: 500 }
+      );
+    }
+
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const user = await adminAuth.getUser(uid);
     const currentUserEmail = user.email!;
-
-    const userRef = db.ref(`users/${uid}`);
-    const userSnapshot = await userRef.once('value');
-    const userData = userSnapshot.val();
-    const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
 
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
@@ -33,11 +46,31 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (!isAdmin && project.owner !== currentUserEmail) {
+    if (project.owner !== currentUserEmail && currentUserEmail !== 'alexrus1144@gmail.com') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    return NextResponse.json(project);
+    const folderId = process.env.YC_FOLDER_ID;
+    let containerUrl: string | undefined;
+    if (folderId) {
+      try {
+        const containersData = await listContainers(folderId);
+        const containers = (containersData.containers || []) as YandexContainer[];
+        const container = containers.find(c => c.name === params.id);
+        if (container && container.url) {
+          containerUrl = container.url;
+        }
+      } catch (error) {
+        console.error('Ошибка получения контейнеров из Yandex:', error);
+      }
+    }
+
+    const responseProject = {
+      ...project,
+      domain: containerUrl || project.domain || '',
+    };
+
+    return NextResponse.json(responseProject);
 
   } catch (error) {
     console.error('API Error:', error);
@@ -58,15 +91,18 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!db || !adminAuth) {
+      console.error("Firebase Admin SDK not initialized");
+      return NextResponse.json(
+          { error: "Internal Server Error: Firebase not initialized." },
+          { status: 500 }
+      );
+    }
+
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const user = await adminAuth.getUser(uid);
     const currentUserEmail = user.email!;
-
-    const userRef = db.ref(`users/${uid}`);
-    const userSnapshot = await userRef.once('value');
-    const userData = userSnapshot.val();
-    const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
 
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
@@ -76,7 +112,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (!isAdmin && project.owner !== currentUserEmail) {
+    if (project.owner !== currentUserEmail && currentUserEmail !== 'alexrus1144@gmail.com') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -113,15 +149,18 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    if (!db || !adminAuth) {
+      console.error("Firebase Admin SDK not initialized");
+      return NextResponse.json(
+          { error: "Internal Server Error: Firebase not initialized." },
+          { status: 500 }
+      );
+    }
+
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     const user = await adminAuth.getUser(uid);
     const currentUserEmail = user.email!;
-
-    const userRef = db.ref(`users/${uid}`);
-    const userSnapshot = await userRef.once('value');
-    const userData = userSnapshot.val();
-    const isAdmin = userData?.role === 'admin' || currentUserEmail === 'alexrus1144@gmail.com';
 
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
@@ -131,7 +170,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (!isAdmin && project.owner !== currentUserEmail) {
+    if (project.owner !== currentUserEmail && currentUserEmail !== 'alexrus1144@gmail.com') {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
