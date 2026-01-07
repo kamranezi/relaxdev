@@ -1,9 +1,15 @@
 import * as admin from 'firebase-admin';
 
 if (!admin.apps.length) {
+  let privateKeyEnv = process.env.FIREBASE_PRIVATE_KEY || '';
+
+  // Удаляем кавычки в начале и конце строки, если они есть
+  if (privateKeyEnv.startsWith('"') && privateKeyEnv.endsWith('"')) {
+    privateKeyEnv = privateKeyEnv.substring(1, privateKeyEnv.length - 1);
+  }
 
   // Надежно исправляем приватный ключ, заменяя эскейп-последовательности на реальные переносы строк
-  const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  const privateKey = privateKeyEnv.replace(/\\n/g, '\n');
 
   const serviceAccount = {
     projectId: process.env.FIREBASE_PROJECT_ID,

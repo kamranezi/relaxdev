@@ -2,7 +2,7 @@
   "projects": "Проекты",
   "addProject": "Добавить проект",
   "importProject": "Импортировать",
-  "deploy": "Задеплоить",
+  "deploy": "Задеплоить сайт",
   "githubUrl": "URL GitHub репозитория",
   "projectName": "Имя проекта",
   "lastDeployed": "Последний деплой",
