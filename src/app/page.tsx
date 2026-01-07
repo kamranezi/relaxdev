@@ -11,6 +11,13 @@ import { LanguageToggle } from '@/components/LanguageToggle';
 import { Button } from '@/components/ui/button';
 import { Plus, Bell, Layers, RefreshCw } from 'lucide-react';
 
+// Иконка GitHub для кнопки входа
+const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
+    <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" {...props}>
+        <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+    </svg>
+);
+
 export default function Home() {
   const { user, loading: authLoading, signInWithGitHub, signOut } = useAuth();
   const [language, setLanguage] = useState<Language>('ru');
@@ -72,6 +79,8 @@ export default function Home() {
   useEffect(() => {
     if (user) {
         fetchProjects();
+    } else {
+        setIsLoading(false);
     }
   }, [user, fetchProjects]);
 
@@ -129,7 +138,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-gray-300 font-sans">
-      <header className="flex items-center justify-between p-4 md:p-6 border-b border-gray-800">
+      <header className="flex items-center justify-between p-4 md:p-6 border-b border-gray-800 w-full">
         <div className="flex items-center space-x-3 md:space-x-4">
           <Layers className="h-8 w-8 text-white" />
           <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-200 to-gray-400 bg-clip-text text-transparent">
@@ -138,15 +147,15 @@ export default function Home() {
         </div>
         <div className="flex items-center space-x-2 md:space-x-4">
           <LanguageToggle language={language} onLanguageChange={setLanguage} />
-          <button className="text-gray-400 hover:text-white transition-colors p-2">
+          <button className="text-gray-400 hover:text-white transition-colors p-2 hidden sm:block">
             <Bell className="h-5 w-5 md:h-6 md:w-6" />
           </button>
           
           {user ? (
-            <div className="flex items-center gap-3 pl-2 border-l border-gray-800">
+            <div className="flex items-center gap-3 pl-2 sm:border-l border-gray-800">
               <div className="text-right hidden sm:block">
-                <div className="text-sm text-white font-medium">{user.displayName}</div>
-                <div className="text-xs text-gray-500">{user.email}</div>
+                <div className="text-sm text-white font-medium truncate">{user.displayName}</div>
+                <div className="text-xs text-gray-500 truncate">{user.email}</div>
               </div>
               {user.photoURL && (
                 <Image 
@@ -160,14 +169,17 @@ export default function Home() {
               <Button 
                 variant="ghost" 
                 onClick={signOut} 
-                className="text-xs text-gray-400 hover:text-white px-2"
+                className="text-xs text-gray-400 hover:text-white px-2 hidden sm:block"
               >
                 {t.signout}
               </Button>
             </div>
           ) : (
-            <Button onClick={signInWithGitHub} className="bg-white text-black hover:bg-gray-200 ml-2">
-              {t.signin}
+            <Button 
+                onClick={signInWithGitHub} 
+                className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
+                <GithubIcon className="fill-white"/>
+                <span className='hidden sm:inline'>{t.signin}</span>
             </Button>
           )}
 
@@ -199,7 +211,19 @@ export default function Home() {
           </Button>
         </div>
 
-        {(projects.length === 0 && !isLoading) && (
+        {(!user && !authLoading) ? (
+            <div className="flex flex-col items-center justify-center py-16 text-center">
+                <Layers className="h-16 w-16 text-gray-600 mb-4" />
+                <h3 className="text-xl font-semibold text-gray-400 mb-2">Войдите, чтобы увидеть проекты</h3>
+                <p className="text-gray-500 mb-6">Авторизуйтесь через GitHub, чтобы начать управлять вашими проектами.</p>
+                <Button 
+                    onClick={signInWithGitHub} 
+                    className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
+                    <GithubIcon className="fill-white"/>
+                    <span>{t.signin}</span>
+                </Button>
+            </div>
+        ) : projects.length === 0 && !isLoading ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
             <Layers className="h-16 w-16 text-gray-600 mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">
@@ -213,9 +237,7 @@ export default function Home() {
               {t.addProject}
             </Button>
           </div>
-        )}
-
-        { (isLoading || authLoading) && projects.length === 0 ? (
+        ) : (isLoading || authLoading) && projects.length === 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
             {[...Array(3)].map((_, i) => (
                 <div key={i} className="bg-gray-800/50 rounded-lg p-6 animate-pulse">
