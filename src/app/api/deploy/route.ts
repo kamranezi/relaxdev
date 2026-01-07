@@ -25,13 +25,20 @@ export async function POST(request: NextRequest) {
     const userRef = db.ref(`users/${uid}`);
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
-    const githubToken = userData?.githubAccessToken;
+    const userGithubToken = userData?.githubAccessToken;
 
-    if (!githubToken) {
-        return NextResponse.json({ error: 'GitHub token not found' }, { status: 403 });
+    if (!userGithubToken) {
+        return NextResponse.json({ error: 'User GitHub token not found' }, { status: 403 });
     }
 
-    const octokit = new Octokit({ auth: githubToken });
+    // Используем специальный токен для запуска сборки
+    const builderGithubToken = process.env.GITHUB_ACCESS_TOKEN;
+    if (!builderGithubToken) {
+        console.error('GITHUB_ACCESS_TOKEN is not set on the server');
+        return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+    }
+
+    const octokit = new Octokit({ auth: builderGithubToken });
 
     const body = await request.json();
     const { gitUrl, projectName, envVars } = body;
@@ -73,7 +80,8 @@ export async function POST(request: NextRequest) {
       inputs: {
         gitUrl: gitUrl,
         projectName: safeName,
-        gitToken: githubToken || '',
+        // Передаем токен пользователя для клонирования его репозитория
+        gitToken: userGithubToken || '', 
         owner: ownerEmail,
         envVars: envVarsString,
       },
