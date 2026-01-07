@@ -12,7 +12,6 @@ export async function POST(
     const body = await request.json();
     const { status, buildErrors, missingEnvVars, deploymentLogs, domain } = body;
 
-    // Проверяем секретный ключ для безопасности (можно добавить в env)
     const secret = request.headers.get('x-webhook-secret');
     if (secret !== process.env.WEBHOOK_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -35,9 +34,9 @@ export async function POST(
     };
 
     if (status) {
-      // Маппинг статусов из workflow в наши статусы
       if (status === 'success' || status === 'ACTIVE') {
         updates.status = 'Активен';
+        updates.lastDeployed = new Date().toISOString(); 
       } else if (status === 'building' || status === 'in_progress') {
         updates.status = 'Сборка';
       } else {
@@ -58,7 +57,7 @@ export async function POST(
     }
 
     if (domain) {
-      updates.domain = domain;
+      updates.domain = domain.endsWith('/') ? domain.slice(0, -1) : domain;
     }
 
     await projectRef.update(updates);
