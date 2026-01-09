@@ -174,7 +174,7 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
         >
            <div className={`flex items-center gap-1.5 ${statusConfig.color}`}>
             <StatusIcon 
-              className={`h-4 w-4 ${statusCode.animate || isRedeploying ? 'animate-spin' : ''}`} 
+              className={`h-4 w-4 ${statusConfig.animate || isRedeploying ? 'animate-spin' : ''}`} 
             />
             <span className="text-sm">
               {isRedeploying ? t.status.building : statusConfig.text}

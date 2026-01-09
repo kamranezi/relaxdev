@@ -1,7 +1,15 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { onAuthStateChanged, User, getAuth, signInWithPopup, GithubAuthProvider, signOut as firebaseSignOut } from 'firebase/auth';
+import { 
+  onAuthStateChanged, 
+  User, 
+  getAuth, 
+  signInWithRedirect,
+  getRedirectResult,
+  GithubAuthProvider, 
+  signOut as firebaseSignOut 
+} from 'firebase/auth';
 import { app } from '@/lib/firebase-client';
 
 interface AuthContextType {
@@ -49,6 +57,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Этот хук обрабатывает сессию пользователя из Firebase
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
@@ -58,31 +67,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  // Этот хук обрабатывает результат перенаправления при входе
+  useEffect(() => {
+    const processRedirectResult = async () => {
+        try {
+            const result = await getRedirectResult(auth);
+            if (result) {
+                // Пользователь только что вошел через перенаправление
+                const credential = GithubAuthProvider.credentialFromResult(result);
+                const githubToken = credential?.accessToken;
+
+                if (result.user && githubToken) {
+                    console.log(`Signed in with GitHub via redirect. Posting data to backend...`);
+                    await postAuthData(result.user, githubToken);
+                }
+            }
+        } catch (error: any) {
+            console.error("Authentication error during redirect result:", error);
+            if (error.code === 'auth/account-exists-with-different-credential') {
+                alert('Аккаунт с таким email уже существует. Пожалуйста, войдите, используя способ, который вы использовали при первой регистрации.');
+            } else {
+                alert(`Ошибка входа: ${error.message}`);
+            }
+        }
+    };
+    
+    processRedirectResult();
+  }, []); // Пустой массив зависимостей гарантирует, что это выполнится один раз при монтировании
+
+
   const signInWithGitHub = async () => {
     setLoading(true);
-    try {
-      const provider = new GithubAuthProvider();
-      // Запрашиваем права на доступ к репозиториям
-      provider.addScope('repo'); 
-
-      const result = await signInWithPopup(auth, provider);
-      const credential = GithubAuthProvider.credentialFromResult(result);
-      const githubToken = credential?.accessToken;
-
-      if (result.user && githubToken) {
-        console.log(`Signed in with GitHub. Posting data to backend...`);
-        await postAuthData(result.user, githubToken);
-      }
-    } catch (error: any) {
-      console.error("Authentication error:", error);
-      if (error.code === 'auth/account-exists-with-different-credential') {
-        alert('Аккаунт с таким email уже существует. Пожалуйста, войдите, используя способ, который вы использовали при первой регистрации.');
-      } else {
-        alert(`Ошибка входа: ${error.message}`);
-      }
-    } finally {
-      setLoading(false);
-    }
+    const provider = new GithubAuthProvider();
+    provider.addScope('repo'); 
+    await signInWithRedirect(auth, provider);
   };
 
   const signOut = async () => {
