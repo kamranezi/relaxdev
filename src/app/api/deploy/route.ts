@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const userGithubToken = userData?.githubAccessToken;
+    const ownerLogin = userData?.login;
 
     if (!userGithubToken) {
         return NextResponse.json({ error: 'User GitHub token not found' }, { status: 403 });
@@ -41,7 +42,7 @@ export async function POST(request: NextRequest) {
     const octokit = new Octokit({ auth: builderGithubToken });
 
     const body = await request.json();
-    const { gitUrl, projectName, envVars } = body;
+    const { gitUrl, projectName, envVars, isPublic } = body;
 
     if (!gitUrl || !projectName) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
@@ -58,6 +59,8 @@ export async function POST(request: NextRequest) {
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
       domain: `${safeName}.containers.yandexcloud.net`,
       owner: ownerEmail,
+      ownerLogin: ownerLogin,
+      isPublic: isPublic || false,
       envVars: envVars || [],
       buildErrors: [],
       missingEnvVars: [],

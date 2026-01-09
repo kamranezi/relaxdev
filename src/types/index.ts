@@ -15,6 +15,7 @@ export interface Project {
   domain: string;
   owner: string; // email пользователя-владельца
   ownerLogin?: string; // login пользователя (для GitHub)
+  isPublic: boolean;
   envVars?: ProjectEnvVar[]; // переменные окружения
   buildErrors?: string[]; // ошибки сборки
   missingEnvVars?: string[]; // отсутствующие переменные окружения

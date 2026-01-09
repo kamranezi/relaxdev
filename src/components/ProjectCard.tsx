@@ -2,14 +2,17 @@
 
 import { Project } from '@/types';
 import { Language, getTranslation } from '@/lib/i18n';
-import { CheckCircle2, Loader2, XCircle, ExternalLink, AlertCircle, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle, ExternalLink, AlertCircle, RefreshCw, Globe, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useState } from 'react';
+import Image from 'next/image';
 
 interface ProjectCardProps {
   project: Project;
   language: Language;
   onRedeploy: () => Promise<void>;
+  isPublic?: boolean;
+  ownerLogin?: string;
 }
 
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -30,7 +33,7 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
-export function ProjectCard({ project, language, onRedeploy }: ProjectCardProps) {
+export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogin }: ProjectCardProps) {
   const t = getTranslation(language);
   const { user } = useAuth();
   const [isRedeploying, setIsRedeploying] = useState(false);
@@ -51,20 +54,18 @@ export function ProjectCard({ project, language, onRedeploy }: ProjectCardProps)
         body: JSON.stringify({ 
           gitUrl: project.repoUrl, 
           projectName: project.name,
-          // Передаем переменные окружения, если они есть
           envVars: project.envVars, 
+          isPublic: project.isPublic,
         }),
       });
 
       if (!response.ok) {
         throw new Error('Redeployment failed');
       }
-      // После успешного запроса на переразвертывание, вызываем коллбэк для обновления списка
       await onRedeploy(); 
 
     } catch (error) {
       console.error('Redeploy error:', error);
-      // Здесь можно показать уведомление об ошибке
     } finally {
       setIsRedeploying(false);
     }
@@ -119,72 +120,75 @@ export function ProjectCard({ project, language, onRedeploy }: ProjectCardProps)
 
   return (
     <div 
-      className="bg-[#1A1A1A] rounded-lg shadow-lg p-6 hover:shadow-cyan-500/20 hover:border-gray-800 transition-all duration-300 group flex flex-col justify-between h-full"
+      className="bg-[#1A1A1A] rounded-lg shadow-lg p-5 hover:shadow-cyan-500/20 hover:border-gray-800 transition-all duration-300 group flex flex-col justify-between h-full border border-transparent"
     >
-      <div onClick={() => window.location.href = `/projects/${project.id}`} className="cursor-pointer">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors truncate">
+      <div onClick={() => window.location.href = `/projects/${project.id}`} className="cursor-pointer flex-grow">
+        <div className="flex items-start justify-between mb-3">
+          <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors break-all pr-2">
             {project.name}
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {isPublic && (
+                <div title="Публичный проект" className="flex items-center gap-1 text-xs text-gray-400 bg-gray-700/50 px-2 py-1 rounded-full">
+                    <Globe className="h-3 w-3" />
+                </div>
+            )}
             {hasWarnings && (
               <span title={t.warnings.title}>
                 <AlertCircle className="h-5 w-5 text-yellow-500" />
               </span>
             )}
-            <a
-              href={project.repoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="text-gray-400 hover:text-white transition-colors"
-              title="GitHub Repository"
-            >
-              <GithubIcon className="h-5 w-5" />
-            </a>
           </div>
         </div>
         
-        <div className="mb-4 flex items-center justify-between">
-          <p className="text-gray-400 font-mono text-sm truncate">{project.domain}</p>
+        <div className="mb-4">
+            <a 
+                href={domainUrl} 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                onClick={(e) => e.stopPropagation()}
+                className="font-mono text-sm text-cyan-400 hover:underline truncate block"
+            >
+                {project.domain}
+            </a>
+        </div>
+        
+        <div className="mb-4 text-xs text-gray-400 flex items-center gap-2">
+          <GithubIcon className="h-4 w-4 shrink-0" />
           <a 
-            href={domainUrl} 
+            href={project.repoUrl} 
             target="_blank" 
             rel="noopener noreferrer" 
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-2 text-xs bg-gray-700/50 hover:bg-cyan-500/20 text-cyan-400 px-3 py-1 rounded-full transition-colors"
+            className="hover:text-white transition-colors truncate"
           >
-              {t.visit}
-              <ExternalLink className="h-3.5 w-3.5" />
+            {project.repoUrl.replace('https://github.com/', '')}
           </a>
         </div>
-        
-        {hasWarnings && (
-          <div className="mb-2 text-xs text-yellow-500 flex items-center gap-1">
-            <AlertCircle className="h-3 w-3" />
-            <span>
-              {project.buildErrors && project.buildErrors.length > 0 && t.warnings.buildErrors}
-              {project.buildErrors && project.buildErrors.length > 0 && project.missingEnvVars && project.missingEnvVars.length > 0 && ', '}
-              {project.missingEnvVars && project.missingEnvVars.length > 0 && t.warnings.missingVars}
-            </span>
-          </div>
-        )}
       </div>
       
-      <div className="flex items-center justify-between mt-auto pt-4">
+      <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
         <div 
           className={`flex items-center space-x-2 ${statusConfig.isError ? 'cursor-pointer' : ''}`}
           onClick={statusConfig.isError ? handleRedeploy : undefined}
         >
-          <span className={`h-3 w-3 rounded-full ${statusConfig.dotColor}`}></span>
-          <span className={`text-sm flex items-center gap-1.5 ${statusConfig.color}`}>
+           <div className={`flex items-center gap-1.5 ${statusConfig.color}`}>
             <StatusIcon 
-              className={`h-3.5 w-3.5 ${statusConfig.animate || isRedeploying ? 'animate-spin' : ''}`} 
+              className={`h-4 w-4 ${statusCode.animate || isRedeploying ? 'animate-spin' : ''}`} 
             />
-            {isRedeploying ? t.status.building : statusConfig.text}
-          </span>
+            <span className="text-sm">
+              {isRedeploying ? t.status.building : statusConfig.text}
+            </span>
+          </div>
         </div>
-        <p className="text-sm text-gray-500">{project.lastDeployed}</p>
+        <div className="flex items-center gap-3">
+            {ownerLogin && (
+              <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+                <Image src={`https://github.com/${ownerLogin}.png`} alt={ownerLogin} width={20} height={20} className="rounded-full" />
+              </a>
+            )}
+          <p className="text-sm text-gray-500">{project.lastDeployed}</p>
+        </div>
       </div>
     </div>
   );

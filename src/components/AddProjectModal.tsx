@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Github, Lock, Loader2, X, Plus } from 'lucide-react';
 import { ProjectEnvVar } from '@/types';
 import { User } from 'firebase/auth';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDeploy: (gitUrl: string, projectName: string, gitToken?: string, envVars?: ProjectEnvVar[]) => Promise<void>;
+  onDeploy: (gitUrl: string, projectName: string, gitToken: string | undefined, envVars: ProjectEnvVar[] | undefined, isPublic: boolean) => Promise<void>;
   language: 'ru' | 'en';
   user: User | null;
 }
@@ -35,6 +37,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   const [envVars, setEnvVars] = useState<ProjectEnvVar[]>([]);
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
+  const [isPublic, setIsPublic] = useState(false);
 
   const loadRepos = useCallback(async () => {
     if (!user) return;
@@ -69,6 +72,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
         setEnvVars([]);
         setNewEnvKey('');
         setNewEnvValue('');
+        setIsPublic(false);
     }
   }, [isOpen, user, loadRepos]);
 
@@ -100,7 +104,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
     if (!gitUrl || !projectName) return;
     setIsLoading(true);
     try {
-      await onDeploy(gitUrl, projectName, '', envVars.length > 0 ? envVars : undefined);
+      await onDeploy(gitUrl, projectName, '', envVars.length > 0 ? envVars : undefined, isPublic);
       onClose();
     } catch (error) {
       console.error("Ошибка деплоя:", error);
@@ -283,6 +287,10 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                 )}
               </div>
             </div>
+             <div className="flex items-center space-x-2 pt-4 border-t border-gray-800">
+                <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
+                <Label htmlFor="public-switch">Сделать проект публичным</Label>
+             </div>
 
             <Button 
                 onClick={handleDeployClick} 

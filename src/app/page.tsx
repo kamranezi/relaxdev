@@ -36,15 +36,11 @@ export default function Home() {
   };
 
   const fetchProjects = useCallback(async () => {
-    if (!user) return;
     setIsLoading(true);
     try {
-      const token = await user.getIdToken();
-      const res = await fetch('/api/projects', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        }
-      });
+        const token = user ? await user.getIdToken() : '';
+        const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
+        const res = await fetch('/api/projects', { headers });
 
       if (res.ok) {
         const apiProjects = await res.json();
@@ -77,12 +73,8 @@ export default function Home() {
   }, [user, t.status.building, signOut]);
 
   useEffect(() => {
-    if (user) {
-        fetchProjects();
-    } else {
-        setIsLoading(false);
-    }
-  }, [user, fetchProjects]);
+    fetchProjects();
+  }, [fetchProjects]);
 
   const formatTimeAgo = (timeStr: string): string => {
     if (!timeStr) return '';
@@ -105,7 +97,7 @@ export default function Home() {
     return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US');
   };
 
-  const handleDeploy = async (gitUrl: string, projectName: string, gitToken?: string, envVars?: { key: string; value: string }[]) => {
+  const handleDeploy = async (gitUrl: string, projectName: string, gitToken: string | undefined, envVars: { key: string; value: string }[] | undefined, isPublic: boolean) => {
     if (!user) throw new Error('User not authenticated');
     try {
         const token = await user.getIdToken();
@@ -115,7 +107,7 @@ export default function Home() {
                 'Content-Type': 'application/json',
                 'Authorization': `Bearer ${token}`,
             },
-            body: JSON.stringify({ gitUrl, projectName, gitToken, envVars }),
+            body: JSON.stringify({ gitUrl, projectName, gitToken, envVars, isPublic }),
         });
 
         if (!response.ok) throw new Error('Deployment failed');
@@ -175,12 +167,14 @@ export default function Home() {
               </Button>
             </div>
           ) : (
-            <Button 
-                onClick={signInWithGitHub} 
-                className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
-                <GithubIcon className="fill-white"/>
-                <span className='hidden sm:inline'>{t.signin}</span>
-            </Button>
+            !authLoading && (
+              <Button 
+                  onClick={signInWithGitHub} 
+                  className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
+                  <GithubIcon className="fill-white"/>
+                  <span className='hidden sm:inline'>{t.signin}</span>
+              </Button>
+            )
           )}
 
         </div>
@@ -202,44 +196,38 @@ export default function Home() {
             </button>
           </div>
           
-          <Button
-            onClick={handleAddProjectClick}
-            className="bg-white text-black hover:bg-gray-200 transition-colors w-full sm:w-auto"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            {t.addProject}
-          </Button>
-        </div>
-
-        {(!user && !authLoading) ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center">
-                <Layers className="h-14 w-14 sm:h-16 sm:w-16 text-gray-600 mb-4" />
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-400 mb-2">Войдите, чтобы увидеть проекты</h3>
-                <p className="text-gray-500 mb-6 max-w-md">Авторизуйтесь через GitHub, чтобы начать управлять вашими проектами.</p>
-                <Button 
-                    onClick={signInWithGitHub} 
-                    className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
-                    <GithubIcon className="fill-white"/>
-                    <span>{t.signin}</span>
-                </Button>
-            </div>
-        ) : projects.length === 0 && !isLoading ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <Layers className="h-14 w-14 sm:h-16 sm:w-16 text-gray-600 mb-4" />
-            <h3 className="text-lg sm:text-xl font-semibold text-gray-400 mb-2">
-              {t.noProjectsTitle}
-            </h3>
-            <p className="text-gray-500 mb-6 max-w-sm">
-              {t.noProjectsDescription}
-            </p>
-            <Button onClick={handleAddProjectClick} className="bg-white text-black hover:bg-gray-200">
+          {user && !authLoading && (
+            <Button
+              onClick={handleAddProjectClick}
+              className="bg-white text-black hover:bg-gray-200 transition-colors w-full sm:w-auto"
+            >
               <Plus className="h-4 w-4 mr-2" />
               {t.addProject}
             </Button>
+          )}
+        </div>
+
+        {projects.length === 0 && !isLoading && !authLoading && (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Layers className="h-14 w-14 sm:h-16 sm:w-16 text-gray-600 mb-4" />
+            <h3 className="text-lg sm:text-xl font-semibold text-gray-400 mb-2">
+              {user ? t.noProjectsTitle : 'Проекты не найдены'}
+            </h3>
+            <p className="text-gray-500 mb-6 max-w-sm">
+              {user ? t.noProjectsDescription : 'Публичные проекты отсутствуют. Войдите, чтобы добавить свой.'}
+            </p>
+            {!user && (
+              <Button 
+                  onClick={signInWithGitHub} 
+                  className="bg-[#24292e] text-white hover:bg-[#2f363d] flex items-center gap-2 px-4 py-2 rounded-md">
+                  <GithubIcon className="fill-white"/>
+                  <span>{t.signin}</span>
+              </Button>
+            )}
           </div>
-        ) : (isLoading || authLoading) && projects.length === 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-            {[...Array(3)].map((_, i) => (
+        ) || (isLoading || authLoading) && projects.length === 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+            {[...Array(4)].map((_, i) => (
                 <div key={i} className="bg-gray-800/50 rounded-lg p-6 animate-pulse">
                     <div className="h-6 bg-gray-700 rounded w-3/4 mb-4"></div>
                     <div className="h-4 bg-gray-700 rounded w-1/2 mb-6"></div>
@@ -261,6 +249,8 @@ export default function Home() {
                 }}
                 language={language}
                 onRedeploy={fetchProjects} 
+                isPublic={project.isPublic}
+                ownerLogin={project.ownerLogin}
               />
             ))}
           </div>

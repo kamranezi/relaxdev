@@ -15,12 +15,16 @@ export async function POST(
     }
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
+    
+    const adminRef = db.ref(`admins/${uid}`);
+    const adminSnapshot = await adminRef.once('value');
+    const isAdmin = adminSnapshot.val() === true;
 
     const projectRef = db.ref(`projects/${projectId}`);
     const projectSnapshot = await projectRef.once('value');
     const project = projectSnapshot.val();
 
-    if (!project || project.owner !== uid) {
+    if (!project || (project.owner !== decodedToken.email && !isAdmin)) {
       return NextResponse.json({ error: 'Project not found or access denied' }, { status: 404 });
     }
 

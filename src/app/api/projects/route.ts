@@ -25,15 +25,23 @@ export async function GET(req: Request) {
     }
 
     const idToken = req.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!idToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    let currentUserEmail: string | null = null;
+    let isAdmin = false;
+
+    if (idToken) {
+        try {
+            const decodedToken = await adminAuth.verifyIdToken(idToken);
+            const uid = decodedToken.uid;
+            const user = await adminAuth.getUser(uid);
+            currentUserEmail = user.email!;
+
+            const adminRef = db.ref(`admins/${uid}`);
+            const adminSnapshot = await adminRef.once('value');
+            isAdmin = adminSnapshot.val() === true;
+        } catch (error) {
+            console.warn("Invalid auth token, treating as unauthenticated.", error);
+        }
     }
-    
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const user = await adminAuth.getUser(uid);
-    
-    const currentUserEmail = user.email!;
 
     const projectsRef = db.ref('projects');
     const projectsSnapshot = await projectsRef.once('value');
@@ -56,7 +64,11 @@ export async function GET(req: Request) {
 
     const projects: Project[] = (Object.entries(allProjects) as [string, Project][])
       .filter(([key, project]: [string, Project]) => {
-        return project.owner === currentUserEmail || currentUserEmail === 'alexrus1144@gmail.com';
+        if (isAdmin) return true;
+        if (currentUserEmail) {
+          return project.owner === currentUserEmail || project.isPublic;
+        }
+        return project.isPublic;
       })
       .map(([key, project]: [string, Project]) => {
         const container = containersMap[key];
@@ -79,6 +91,7 @@ export async function GET(req: Request) {
           targetImage: project.targetImage || '',
           domain: container?.url || project.domain || '',
           owner: project.owner || '',
+          isPublic: project.isPublic || false,
           envVars: project.envVars || [],
           buildErrors: project.buildErrors || [],
           missingEnvVars: project.missingEnvVars || [],

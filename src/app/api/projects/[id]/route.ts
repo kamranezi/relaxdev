@@ -21,9 +21,6 @@ export async function GET(
   try {
     const params = await context.params;
     const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!idToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
 
     if (!db || !adminAuth) {
       console.error("Firebase Admin SDK not initialized");
@@ -33,10 +30,23 @@ export async function GET(
       );
     }
 
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const user = await adminAuth.getUser(uid);
-    const currentUserEmail = user.email!;
+    let currentUserEmail: string | null = null;
+    let isAdmin = false;
+
+    if (idToken) {
+        try {
+            const decodedToken = await adminAuth.verifyIdToken(idToken);
+            const uid = decodedToken.uid;
+            const user = await adminAuth.getUser(uid);
+            currentUserEmail = user.email!;
+
+            const adminRef = db.ref(`admins/${uid}`);
+            const adminSnapshot = await adminRef.once('value');
+            isAdmin = adminSnapshot.val() === true;
+        } catch (error) {
+            console.warn("Invalid auth token, treating as unauthenticated.", error);
+        }
+    }
 
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
@@ -46,8 +56,8 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.owner !== currentUserEmail && currentUserEmail !== 'alexrus1144@gmail.com') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!project.isPublic && !isAdmin && project.owner !== currentUserEmail) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const folderId = process.env.YC_FOLDER_ID;
@@ -103,6 +113,10 @@ export async function PUT(
     const uid = decodedToken.uid;
     const user = await adminAuth.getUser(uid);
     const currentUserEmail = user.email!;
+    
+    const adminRef = db.ref(`admins/${uid}`);
+    const adminSnapshot = await adminRef.once('value');
+    const isAdmin = adminSnapshot.val() === true;
 
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
@@ -112,7 +126,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.owner !== currentUserEmail && currentUserEmail !== 'alexrus1144@gmail.com') {
+    if (project.owner !== currentUserEmail && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
@@ -162,6 +176,10 @@ export async function DELETE(
     const user = await adminAuth.getUser(uid);
     const currentUserEmail = user.email!;
 
+    const adminRef = db.ref(`admins/${uid}`);
+    const adminSnapshot = await adminRef.once('value');
+    const isAdmin = adminSnapshot.val() === true;
+
     const projectRef = db.ref(`projects/${params.id}`);
     const projectSnapshot = await projectRef.once('value');
     const project = projectSnapshot.val();
@@ -170,7 +188,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.owner !== currentUserEmail && currentUserEmail !== 'alexrus1144@gmail.com') {
+    if (project.owner !== currentUserEmail && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 

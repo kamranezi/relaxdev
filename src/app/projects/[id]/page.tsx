@@ -22,6 +22,8 @@ import {
 } from 'lucide-react';
 import { getTranslation, Language } from '@/lib/i18n';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg 
@@ -54,6 +56,7 @@ export default function ProjectDetailPage() {
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [isSavingPublic, setIsSavingPublic] = useState(false);
 
   const t = getTranslation(language);
   const projectId = params.id as string;
@@ -177,6 +180,32 @@ export default function ProjectDetailPage() {
       alert('Ошибка удаления переменной');
     } finally {
       setIsSaving(false);
+    }
+  };
+  
+  const handleTogglePublic = async (isPublic: boolean) => {
+    if (!project || !user) return;
+    setIsSavingPublic(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/projects/${projectId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`
+        },
+        body: JSON.stringify({ isPublic }),
+      });
+      if (res.ok) {
+        setProject(prev => prev ? ({ ...prev, isPublic }) : null);
+      } else {
+        alert('Failed to update public status');
+      }
+    } catch (error) {
+      console.error('Error saving public status:', error);
+      alert('Error saving public status');
+    } finally {
+      setIsSavingPublic(false);
     }
   };
 
@@ -321,10 +350,11 @@ export default function ProjectDetailPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid grid-cols-3 sm:inline-grid sm:grid-cols-3 bg-black/50 w-full sm:w-auto">
+            <TabsList className="grid grid-cols-4 sm:inline-grid sm:grid-cols-4 bg-black/50 w-full sm:w-auto">
               <TabsTrigger value="overview">{t.overview}</TabsTrigger>
               <TabsTrigger value="env">{t.envVars}</TabsTrigger>
               <TabsTrigger value="logs">{t.logs}</TabsTrigger>
+              <TabsTrigger value="settings">Настройки</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="mt-6">
@@ -473,6 +503,27 @@ export default function ProjectDetailPage() {
                 <pre className="font-mono text-xs text-gray-300 whitespace-pre">
                   {project.deploymentLogs || t.noLogs}
                 </pre>
+              </div>
+            </TabsContent>
+            <TabsContent value="settings" className="mt-6">
+              <div className="bg-black/30 rounded-lg p-4 sm:p-6">
+                <h3 className="text-lg font-medium text-white mb-4">Доступ к проекту</h3>
+                <div className="flex items-center space-x-4 p-4 rounded-md border border-gray-800">
+                  <Switch
+                    id="public-switch"
+                    checked={project.isPublic}
+                    onCheckedChange={handleTogglePublic}
+                    disabled={isSavingPublic}
+                  />
+                  <div className="flex flex-col">
+                    <Label htmlFor="public-switch" className="font-medium text-gray-200">
+                      Публичный проект
+                    </Label>
+                    <p className="text-sm text-gray-400">
+                      Разрешить всем пользователям в Интернете просматривать этот проект. Управлять им могут только администраторы и вы.
+                    </p>
+                  </div>
+                </div>
               </div>
             </TabsContent>
           </Tabs>
