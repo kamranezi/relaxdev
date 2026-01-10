@@ -43,10 +43,16 @@ export async function POST(request: NextRequest) {
     const octokit = new Octokit({ auth: builderGithubToken });
 
     const body = await request.json();
-    const { gitUrl, projectName, envVars, isPublic, autodeploy } = body;
+    // let { gitUrl... } потому что мы будем менять gitUrl
+    let { gitUrl, projectName, envVars, isPublic, autodeploy } = body;
 
     if (!gitUrl || !projectName) {
       return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    }
+
+    // ⭐ ИСПРАВЛЕНИЕ: Автоматически убираем .git с конца URL, если он есть
+    if (gitUrl.endsWith('.git')) {
+        gitUrl = gitUrl.slice(0, -4);
     }
 
     const safeName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
@@ -59,14 +65,14 @@ export async function POST(request: NextRequest) {
       id: safeName,
       name: projectName,
       status: 'Сборка',
-      repoUrl: gitUrl,
+      repoUrl: gitUrl, // Теперь здесь чистая ссылка без .git
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
       domain: '',
       owner: ownerEmail,
       ownerLogin: ownerLogin || null,
       isPublic: isPublic || false,
       autodeploy: autodeploy !== false,
-      webhookId: null as number | null, // Инициализируем поле
+      webhookId: null as number | null,
       envVars: envVars || [],
       buildErrors: [],
       missingEnvVars: [],
@@ -78,29 +84,16 @@ export async function POST(request: NextRequest) {
 
     await projectRef.set(projectData);
 
-    // ⭐ БЛОК ВЕБХУКА (ИСПРАВЛЕННЫЙ) ⭐
+    // ⭐ БЛОК ВЕБХУКА ⭐
     if (autodeploy !== false) {
       try {
-        // 1. Убираем .git с конца и https://github.com/ с начала
-        const cleanRepoPath = gitUrl
-            .replace(/\.git$/, '') // Убираем .git в конце
-            .replace(/^https?:\/\/github\.com\//, ''); // Убираем домен
-
-        const repoUrlParts = cleanRepoPath.split('/');
-        
-        if (repoUrlParts.length < 2) {
-            throw new Error(`Invalid repo URL format: ${cleanRepoPath}`);
-        }
-
+        const repoUrlParts = gitUrl.replace('https://github.com/', '').split('/');
         const repoOwner = repoUrlParts[0];
         const repoName = repoUrlParts[1];
         
-        console.log(`[API] Attempting to add webhook to ${repoOwner}/${repoName}`);
-
-        // Хардкод домена, как вы просили
+        // Хардкод домена (как мы и договаривались)
         const webhookUrl = `https://relaxdev.ru/api/webhook/github`;
         
-        // Используем токен пользователя
         const userOctokit = new Octokit({ auth: userGithubToken });
 
         // Проверяем существующие хуки
@@ -133,17 +126,12 @@ export async function POST(request: NextRequest) {
             console.log(`[API] Webhook already exists: ID ${webhookId}`);
         }
 
-        // Обновляем проект с ID вебхука
         if (webhookId) {
             await projectRef.update({ webhookId: webhookId });
         }
 
       } catch (err: any) {
-        // Логируем ошибку, но не роняем запрос
         console.error('Failed to add webhook:', err.message);
-        if (err.response) {
-            console.error('GitHub Webhook Error Body:', err.response.data);
-        }
       }
     }
     // ⭐ КОНЕЦ БЛОКА ВЕБХУКА ⭐
@@ -172,9 +160,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('GitHub API Error:', error);
-    if (error.response) {
-        console.error('GitHub Error Data:', error.response.data);
-    }
     const message = error.response?.data?.message || error.message || 'Failed to trigger build';
     return NextResponse.json(
       { error: message }, 

@@ -149,7 +149,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px] max-h-[90vh] overflow-y-auto custom-scrollbar w-[95vw] sm:w-full">
+      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px] w-[95vw] max-h-[90vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{language === 'ru' ? 'Новый проект' : 'New Project'}</DialogTitle>
         </DialogHeader>
@@ -160,19 +160,19 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                     <p>Войдите через GitHub, чтобы видеть список репозиториев.</p>
                  </div>
             ) : (
-                <div className="flex flex-col gap-4">
+                <div className="flex flex-col gap-4 w-full">
                     {selectedRepo ? (
-                        <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
-                            {/* min-w-0 здесь критически важен для работы truncate внутри flex-контейнера */}
-                            <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
+                        /* Исправленная карточка репозитория */
+                        <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between w-full max-w-full overflow-hidden">
+                            <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                                 <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
                                     <Github className="w-4 h-4 text-blue-400" />
                                 </div>
-                                <div className="flex flex-col min-w-0 overflow-hidden">
-                                    <span className="text-sm font-medium text-blue-100 truncate block">
+                                <div className="flex flex-col min-w-0 overflow-hidden flex-1">
+                                    <span className="text-sm font-medium text-blue-100 truncate block w-full">
                                         {selectedRepo.full_name}
                                     </span>
-                                    <span className="text-xs text-blue-300/70 truncate block">
+                                    <span className="text-xs text-blue-300/70 truncate block w-full">
                                         {selectedRepo.url}
                                     </span>
                                 </div>
@@ -205,11 +205,11 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                         <div 
                                             key={repo.id}
                                             onClick={() => handleRepoSelect(repo)}
-                                            className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group"
+                                            className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group w-full max-w-full overflow-hidden"
                                         >
-                                            <div className="flex items-center gap-2 overflow-hidden min-w-0">
+                                            <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
                                                 {repo.private ? <Lock className="w-3 h-3 text-yellow-500 shrink-0" /> : <Github className="w-3 h-3 text-gray-400 shrink-0" />}
-                                                <span className="truncate text-gray-300 group-hover:text-white block">{repo.full_name}</span>
+                                                <span className="truncate text-gray-300 group-hover:text-white block w-full">{repo.full_name}</span>
                                             </div>
                                             <Button variant="ghost" size="sm" className="h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 flex-shrink-0 ml-2">
                                                 Select
@@ -271,7 +271,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                     value={newEnvKey}
                     onChange={(e) => setNewEnvKey(e.target.value)}
                     placeholder={language === 'ru' ? 'KEY' : 'KEY'}
-                    className="bg-black/50 border-gray-700 text-xs"
+                    className="bg-black/50 border-gray-700 text-xs flex-1 min-w-0"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
                         handleAddEnvVar();
@@ -282,7 +282,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                     value={newEnvValue}
                     onChange={(e) => setNewEnvValue(e.target.value)}
                     placeholder={language === 'ru' ? 'VALUE' : 'VALUE'}
-                    className="bg-black/50 border-gray-700 text-xs"
+                    className="bg-black/50 border-gray-700 text-xs flex-1 min-w-0"
                     type="password"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
@@ -297,9 +297,9 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                     {envVars.map((envVar, index) => (
                       <div key={index} className="flex items-center justify-between text-xs bg-gray-900/50 p-2 rounded">
                         <span className="text-gray-300 min-w-0 flex-1 flex items-center overflow-hidden">
-                          <span className="font-mono text-blue-400 truncate max-w-[40%]">{envVar.key}</span>
+                          <span className="font-mono text-blue-400 truncate max-w-[40%] block">{envVar.key}</span>
                           <span className="text-gray-500 mx-2 flex-shrink-0">=</span>
-                          <span className="text-green-400 truncate max-w-[40%]">••••••••</span>
+                          <span className="text-green-400 truncate max-w-[40%] block">••••••••</span>
                         </span>
                         <Button
                           type="button"
@@ -318,18 +318,28 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
             </div>
             
             <div className="space-y-4 pt-4 border-t border-gray-800">
-                 <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="public-switch" className="cursor-pointer text-sm font-medium text-gray-300">
-                        {language === 'ru' ? 'Сделать проект публичным' : 'Public Project'}
-                    </Label>
-                    <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                    <div className="flex flex-col">
+                        <Label htmlFor="public-switch" className="cursor-pointer text-sm font-medium text-gray-300">
+                            {language === 'ru' ? 'Сделать проект публичным' : 'Public Project'}
+                        </Label>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                        <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
+                        <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
+                    </div>
                  </div>
                  
-                 <div className="flex items-center justify-between space-x-2">
-                    <Label htmlFor="autodeploy-switch" className="cursor-pointer text-sm font-medium text-gray-300">
-                        {language === 'ru' ? 'Включить автодеплой' : 'Enable Autodeploy'}
-                    </Label>
-                    <Switch id="autodeploy-switch" checked={autodeploy} onCheckedChange={setAutodeploy} />
+                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
+                    <div className="flex flex-col">
+                        <Label htmlFor="autodeploy-switch" className="cursor-pointer text-sm font-medium text-gray-300">
+                            {language === 'ru' ? 'Включить автодеплой' : 'Enable Autodeploy'}
+                        </Label>
+                    </div>
+                    <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
+                        <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
+                        <Switch id="autodeploy-switch" checked={autodeploy} onCheckedChange={setAutodeploy} />
+                    </div>
                  </div>
              </div>
 

@@ -1,31 +1,30 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-// import Image from 'next/image'; <-- Больше не нужно
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/AuthProvider';
 import { Project } from '@/types';
-import { getTranslation } from '@/lib/i18n'; // Language тип больше не нужен в state
+import { getTranslation } from '@/lib/i18n';
 import { ProjectCard } from '@/components/ProjectCard';
 import { AddProjectModal } from '@/components/AddProjectModal';
-// import { LanguageToggle } from '@/components/LanguageToggle'; <-- Переехало в Header
 import { Button } from '@/components/ui/button';
-import { Plus, Layers, RefreshCw } from 'lucide-react'; // Bell убрали
-import { useLanguage } from '@/components/LanguageContext'; // ⭐ Импорт хука
+import { Plus, Layers, RefreshCw } from 'lucide-react';
+import { useLanguage } from '@/components/LanguageContext';
 
-// Иконка Github для заглушки (оставляем, так как используется в кнопке "Войти" по центру)
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
-    <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" {...props}>
-        <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
-    </svg>
+  <svg aria-hidden="true" height="16" viewBox="0 0 16 16" version="1.1" width="16" {...props}>
+    <path fillRule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+  </svg>
 );
 
 export default function Home() {
   const { user, loading: authLoading, signInWithGitHub, signOut } = useAuth();
-  // ⭐ ЗАМЕНА: Используем глобальный язык
   const { language } = useLanguage(); 
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // Реф для хранения предыдущего состояния проектов (чтобы сравнивать статусы)
+  const prevProjectsRef = useRef<Project[]>([]);
 
   const t = getTranslation(language);
   
@@ -37,8 +36,19 @@ export default function Home() {
     }
   };
 
-  const fetchProjects = useCallback(async () => {
-    setIsLoading(true);
+  // Запрос разрешения на уведомления
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+  }, []);
+
+  const fetchProjects = useCallback(async (isAutoRefresh = false) => {
+    // При авто-обновлении не включаем спиннер на весь экран
+    if (!isAutoRefresh) setIsLoading(true);
+    
     try {
         const token = user ? await user.getIdToken() : '';
         const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
@@ -48,20 +58,38 @@ export default function Home() {
         const apiProjects = await res.json();
         const validApiProjects = Array.isArray(apiProjects) ? apiProjects : [];
 
-        setProjects(currentProjects => {
-          const buildingProjects = currentProjects.filter(
-            p => p.status === t.status.building
-          );
-          const apiProjectIds = new Set(validApiProjects.map((p: Project) => p.id));
-          const uniqueBuildingProjects = buildingProjects.filter(
-            p => !apiProjectIds.has(p.id)
-          );
-          const combinedProjects = [...validApiProjects, ...uniqueBuildingProjects];
-
-          return combinedProjects.sort((a: Project, b: Project) => 
+        // Сортировка
+        const sortedProjects = validApiProjects.sort((a: Project, b: Project) => 
             new Date(b.lastDeployed).getTime() - new Date(a.lastDeployed).getTime()
-          );
-        });
+        );
+
+        setProjects(sortedProjects);
+
+        // ⭐ ПРОВЕРКА ИЗМЕНЕНИЯ СТАТУСА ДЛЯ УВЕДОМЛЕНИЙ
+        const prevProjects = prevProjectsRef.current;
+        if (prevProjects.length > 0) {
+            sortedProjects.forEach((newP: Project) => {
+                const oldP = prevProjects.find(p => p.id === newP.id);
+                // Если проект был в сборке, а стал Активен
+                if (oldP && (oldP.status === 'Сборка' || oldP.status === 'Building') && 
+                   (newP.status === 'Активен' || newP.status === 'Live')) {
+                    
+                    // Показываем уведомление браузера
+                    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+                        new Notification('Relax Dev', {
+                            body: `Проект ${newP.name} успешно развернут!`,
+                            icon: '/favicon-96x96.png'
+                        });
+                    }
+                    // Можно также добавить звук
+                    // const audio = new Audio('/success.mp3'); audio.play().catch(()=>{});
+                }
+            });
+        }
+        
+        // Обновляем реф
+        prevProjectsRef.current = sortedProjects;
+
       } else if (res.status === 401) {
         console.error('Auth error, please sign in again.');
         signOut(); 
@@ -70,12 +98,23 @@ export default function Home() {
     } catch (e) {
       console.error('Ошибка загрузки проектов:', e);
     } finally {
-      setIsLoading(false);
+      if (!isAutoRefresh) setIsLoading(false);
     }
-  }, [user, t.status.building, signOut]);
+  }, [user, signOut]);
 
+  // Первичная загрузка
   useEffect(() => {
     fetchProjects();
+  }, [fetchProjects]);
+
+  // ⭐ ПОЛЛИНГ: Обновление каждые 10 секунд
+  useEffect(() => {
+    const interval = setInterval(() => {
+        // Передаем true, чтобы не мигал лоадер
+        fetchProjects(true);
+    }, 10000);
+
+    return () => clearInterval(interval);
   }, [fetchProjects]);
 
   const formatTimeAgo = (timeStr: string | undefined): string => {
@@ -95,7 +134,6 @@ export default function Home() {
     return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US');
   };
 
-  // ... (handleDeploy оставляем как есть) ...
   const handleDeploy = async (gitUrl: string, projectName: string, gitToken: string | undefined, envVars: { key: string; value: string }[] | undefined, isPublic: boolean, autodeploy: boolean) => {
     if (!user) throw new Error('User not authenticated');
     try {
@@ -111,13 +149,17 @@ export default function Home() {
             throw new Error(errorMessage);
         }
         const newProject = await response.json();
+        
+        // Сразу добавляем в стейт со статусом "Сборка"
         const localizedProject: Project = {
             ...newProject,
             status: t.status.building,
             lastDeployed: new Date().toISOString(),
         };
         setProjects((prev) => [localizedProject, ...prev]);
-        setTimeout(fetchProjects, 3000); 
+        
+        // Обновляем список через 3 сек на всякий случай
+        setTimeout(() => fetchProjects(true), 3000); 
     } catch (error: any) {
         console.error('Deploy error:', error);
         alert(`Ошибка деплоя: ${error.message}`);
@@ -126,15 +168,11 @@ export default function Home() {
   };
 
   return (
-    // ⭐ Убрали flex-col min-h-screen, так как это теперь в layout
-    <div className="w-full max-w-7xl mx-auto p-4 md:p-8"> 
-      
-      {/* ХЕДЕР УБРАН, так как он теперь в layout */}
-
+    <div className="w-full max-w-7xl mx-auto p-4 md:p-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 md:mb-8 gap-4">
           <div className="flex items-center gap-3">
             <h2 className="text-2xl md:text-3xl font-bold text-white">{t.projects}</h2>
-            <button onClick={fetchProjects} disabled={isLoading || authLoading} className="p-2 hover:bg-gray-800 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Обновить список">
+            <button onClick={() => fetchProjects(false)} disabled={isLoading || authLoading} className="p-2 hover:bg-gray-800 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Обновить список">
               <RefreshCw className={`h-5 w-5 ${isLoading || authLoading ? 'animate-spin' : ''}`} />
             </button>
           </div>
