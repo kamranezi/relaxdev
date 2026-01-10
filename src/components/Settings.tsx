@@ -58,48 +58,57 @@ export function Settings({ project, language, onSettingsChange }: SettingsProps)
   };
 
   return (
-    <div className="rounded-lg bg-[#1A1A1A] p-6 shadow-md space-y-6">
-      <h3 className="text-xl font-bold text-white mb-6">{t.settings}</h3>
+    <div className="rounded-lg bg-[#1A1A1A] p-4 sm:p-6 shadow-md space-y-6 sm:space-y-8">
+      <h3 className="text-lg sm:text-xl font-bold text-white mb-4 sm:mb-6">{t.settings}</h3>
       
       {/* --- Блок Автодеплоя --- */}
-      <div className="flex items-center justify-between space-x-4">
+      {/* ⭐ АДАПТАЦИЯ: flex-col на мобильных, flex-row на десктопе */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col">
-          <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer">
+          <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer text-base">
             {t.autodeploy}
           </Label>
           <p className="text-sm text-gray-400 mt-1">
             {t.autodeployDescription}
           </p>
         </div>
-        <Switch
-          id="autodeploy-switch"
-          checked={project.autodeploy}
-          onCheckedChange={(checked) => handleSettingChange('autodeploy', checked)}
-          disabled={isSaving}
-        />
+        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-2 sm:pt-0">
+            <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
+            <Switch
+                id="autodeploy-switch"
+                checked={project.autodeploy}
+                onCheckedChange={(checked) => handleSettingChange('autodeploy', checked)}
+                disabled={isSaving}
+            />
+        </div>
       </div>
 
-      {/* --- Блок Публичности (Которого не хватало) --- */}
-      <div className="flex items-center justify-between space-x-4 pt-6 border-t border-gray-800">
+      <div className="border-t border-gray-800 my-4" />
+
+      {/* --- Блок Публичности --- */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex flex-col">
-          <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer">
+          <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer text-base">
             {t.publicProject || 'Публичный проект'}
           </Label>
           <p className="text-sm text-gray-400 mt-1">
             {t.publicProjectDescription || 'Разрешить всем пользователям просматривать этот проект.'}
           </p>
         </div>
-        <Switch
-          id="public-switch"
-          checked={project.isPublic}
-          onCheckedChange={(checked) => handleSettingChange('isPublic', checked)}
-          disabled={isSaving}
-        />
+        <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-2 sm:pt-0">
+            <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
+            <Switch
+                id="public-switch"
+                checked={project.isPublic}
+                onCheckedChange={(checked) => handleSettingChange('isPublic', checked)}
+                disabled={isSaving}
+            />
+        </div>
       </div>
 
       {/* Сообщения о статусе */}
-      <div className="min-h-[20px]">
-        {isSaving && <p className="text-sm text-gray-400">Сохранение...</p>}
+      <div className="min-h-[20px] pt-2">
+        {isSaving && <p className="text-sm text-gray-400 animate-pulse">Сохранение...</p>}
         {error && <p className="text-sm text-red-500">{error}</p>}
         {success && <p className="text-sm text-green-500">{success}</p>}
       </div>

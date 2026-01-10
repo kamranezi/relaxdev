@@ -82,7 +82,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
         setNewEnvKey('');
         setNewEnvValue('');
         setIsPublic(false);
-        setAutodeploy(true); // Сбрасываем в true при открытии
+        setAutodeploy(true); 
     }
   }, [isOpen, user, loadRepos]);
 
@@ -148,7 +148,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px]">
+      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px] max-h-[90vh] overflow-y-auto custom-scrollbar">
         <DialogHeader>
           <DialogTitle>{language === 'ru' ? 'Новый проект' : 'New Project'}</DialogTitle>
         </DialogHeader>
@@ -291,7 +291,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                 </div>
 
                 {envVars.length > 0 && (
-                  <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-800 rounded-md p-2">
+                  <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-800 rounded-md p-2 custom-scrollbar">
                     {envVars.map((envVar, index) => (
                       <div key={index} className="flex items-center justify-between text-xs bg-gray-900/50 p-2 rounded">
                         <span className="text-gray-300">

@@ -138,7 +138,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen bg-[#0A0A0A] text-gray-300 font-sans">
-      <header className="flex items-center justify-between p-4 md:p-6 border-b border-gray-800 w-full">
+      <header className="sticky top-0 z-50 bg-[#0A0A0A] bg-opacity-80 backdrop-blur-lg flex items-center justify-between p-4 md:p-6 border-b border-gray-800 w-full">
         <div className="flex items-center space-x-3 md:space-x-4">
           <Layers className="h-7 w-7 md:h-8 md:w-8 text-white" />
           <h1 className="text-xl md:text-2xl font-bold bg-gradient-to-r from-gray-200 to-gray-400 bg-clip-text text-transparent">

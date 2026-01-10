@@ -298,8 +298,9 @@ export default function ProjectDetailPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <RefreshCw className="h-4 w-4 mr-0 md:mr-2" />
+                    <RefreshCw className="h-4 w-4 mr-2" />
                     <span className="hidden md:inline">{language === 'ru' ? 'Редеплой' : 'Redeploy'}</span>
+                    <span className="md:hidden">Build</span>
                   </>
                 )}
               </Button>
@@ -313,8 +314,9 @@ export default function ProjectDetailPage() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 ) : (
                   <>
-                    <Trash2 className="h-4 w-4 mr-0 md:mr-2" />
+                    <Trash2 className="h-4 w-4 mr-2" />
                     <span className="hidden md:inline">{language === 'ru' ? 'Удалить' : 'Delete'}</span>
+                    <span className="md:hidden">Del</span>
                   </>
                 )}
               </Button>
@@ -322,12 +324,15 @@ export default function ProjectDetailPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid grid-cols-4 sm:inline-grid sm:grid-cols-4 bg-black/50 w-full sm:w-auto">
-              <TabsTrigger value="overview">{t.overview}</TabsTrigger>
-              <TabsTrigger value="env">{t.envVars}</TabsTrigger>
-              <TabsTrigger value="logs">{t.logs}</TabsTrigger>
-              <TabsTrigger value="settings">{t.settings}</TabsTrigger>
-            </TabsList>
+            {/* ⭐ АДАПТАЦИЯ: Горизонтальный скролл для табов на мобильных */}
+            <div className="w-full overflow-x-auto pb-2 -mb-2 sm:mb-0 sm:pb-0 scrollbar-none">
+                <TabsList className="bg-black/50 w-full sm:w-auto flex justify-start min-w-[320px]">
+                  <TabsTrigger className="flex-1" value="overview">{t.overview}</TabsTrigger>
+                  <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>
+                  <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>
+                  <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>
+                </TabsList>
+            </div>
 
             <TabsContent value="overview" className="mt-6">
               <div className="space-y-4">
@@ -477,6 +482,7 @@ export default function ProjectDetailPage() {
                 </pre>
               </div>
             </TabsContent>
+            
             <TabsContent value="settings" className="mt-6">
                <Settings 
                   project={project} 
