@@ -1,204 +1,104 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { db, adminAuth } from "@/lib/firebase-admin";
 import { listContainers } from '@/lib/yandex';
 
-export const dynamic = 'force-dynamic';
-
-interface YandexContainer {
-  id: string;
-  name: string;
-  status: string;
-  createdAt: string;
-  url: string; 
-  labels: { [key: string]: string };
-}
-
-// GET - получить детальную информацию о проекте
-export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
+// Хелпер для получения статуса
+async function getContainerStatus(projectName: string) {
   try {
-    const params = await context.params;
-    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
-
-    if (!db || !adminAuth) {
-      console.error("Firebase Admin SDK not initialized");
-      return NextResponse.json(
-          { error: "Internal Server Error: Firebase not initialized." },
-          { status: 500 }
-      );
-    }
-
-    let currentUserEmail: string | null = null;
-    let isAdmin = false;
-
-    if (idToken) {
-        try {
-            const decodedToken = await adminAuth.verifyIdToken(idToken);
-            const uid = decodedToken.uid;
-            const user = await adminAuth.getUser(uid);
-            currentUserEmail = user.email!;
-
-            const adminRef = db.ref(`admins/${uid}`);
-            const adminSnapshot = await adminRef.once('value');
-            isAdmin = adminSnapshot.val() === true;
-        } catch (error) {
-            console.warn("Invalid auth token, treating as unauthenticated.", error);
-        }
-    }
-
-    const projectRef = db.ref(`projects/${params.id}`);
-    const projectSnapshot = await projectRef.once('value');
-    const project = projectSnapshot.val();
-
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
-
-    if (!project.isPublic && !isAdmin && project.owner !== currentUserEmail) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
     const folderId = process.env.YC_FOLDER_ID;
-    let containerUrl: string | undefined;
-    if (folderId) {
-      try {
-        const containersData = await listContainers(folderId);
-        const containers = (containersData.containers || []) as YandexContainer[];
-        const container = containers.find(c => c.name === params.id);
-        if (container && container.url) {
-          containerUrl = container.url;
-        }
-      } catch (error) {
-        console.error('Ошибка получения контейнеров из Yandex:', error);
-      }
-    }
+    if (!folderId) return null;
 
-    const responseProject = {
-      ...project,
-      domain: containerUrl || project.domain || '',
-    };
-
-    return NextResponse.json(responseProject);
-
-  } catch (error) {
-    console.error('API Error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to get project';
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-// PUT - обновить проект (например, переменные окружения, статус)
-export async function PUT(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
-) {
-  try {
-    const params = await context.params;
-    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!idToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!db || !adminAuth) {
-      console.error("Firebase Admin SDK not initialized");
-      return NextResponse.json(
-          { error: "Internal Server Error: Firebase not initialized." },
-          { status: 500 }
-      );
-    }
-
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const user = await adminAuth.getUser(uid);
-    const currentUserEmail = user.email!;
+    const data = await listContainers(folderId);
+    // @ts-ignore
+    const container = data.containers?.find((c: any) => c.name === projectName);
     
-    const adminRef = db.ref(`admins/${uid}`);
-    const adminSnapshot = await adminRef.once('value');
-    const isAdmin = adminSnapshot.val() === true;
-
-    const projectRef = db.ref(`projects/${params.id}`);
-    const projectSnapshot = await projectRef.once('value');
-    const project = projectSnapshot.val();
-
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    if (container) {
+       if (container.status === 'ACTIVE') return 'Активен';
+       if (container.status === 'ERROR' || container.status === 'STOPPED') return 'Ошибка';
     }
-
-    if (project.owner !== currentUserEmail && !isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const body = await request.json();
-    const updates: Record<string, unknown> = {
-      ...body,
-      updatedAt: new Date().toISOString(),
-    };
-
-    delete updates.owner;
-
-    await projectRef.update(updates);
-
-    const updatedProject = { ...project, ...updates };
-
-    return NextResponse.json(updatedProject);
-
-  } catch (error) {
-    console.error('API Error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to update project';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return null;
+  } catch (e) {
+    console.error('Failed to fetch Yandex status:', e);
+    return null;
   }
 }
 
-// DELETE - удалить проект
-export async function DELETE(
-  request: NextRequest,
+export async function GET(
+  request: Request,
+  // В Next.js 15 params нужно ждать, поэтому типизируем как Promise
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const params = await context.params;
-    const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!idToken) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!db || !Object.keys(db).length) {
+      return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
     }
+    const params = await context.params; // Ждем параметры!
+    const id = params.id;
 
-    if (!db || !adminAuth) {
-      console.error("Firebase Admin SDK not initialized");
-      return NextResponse.json(
-          { error: "Internal Server Error: Firebase not initialized." },
-          { status: 500 }
-      );
-    }
-
-    const decodedToken = await adminAuth.verifyIdToken(idToken);
-    const uid = decodedToken.uid;
-    const user = await adminAuth.getUser(uid);
-    const currentUserEmail = user.email!;
-
-    const adminRef = db.ref(`admins/${uid}`);
-    const adminSnapshot = await adminRef.once('value');
-    const isAdmin = adminSnapshot.val() === true;
-
-    const projectRef = db.ref(`projects/${params.id}`);
-    const projectSnapshot = await projectRef.once('value');
-    const project = projectSnapshot.val();
+    const projectRef = db.ref(`projects/${id}`);
+    const snapshot = await projectRef.once('value');
+    let project = snapshot.val();
 
     if (!project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    if (project.owner !== currentUserEmail && !isAdmin) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    // ⭐ ПОЛУЧАЕМ РЕАЛЬНЫЙ СТАТУС ИЗ YANDEX
+    const realStatus = await getContainerStatus(project.name);
+    
+    // Если статус в Яндексе отличается от базы — обновляем объект (и базу для порядка)
+    if (realStatus && realStatus !== project.status) {
+        project.status = realStatus;
+        // Фоново обновляем базу, не блокируя ответ
+        projectRef.update({ status: realStatus }).catch(console.error);
     }
 
-    await projectRef.remove();
+    return NextResponse.json(project);
+  } catch (error) {
+    console.error('Error fetching project:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    if (!db || !Object.keys(db).length) {
+      return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
+    }
+    const params = await context.params;
+    const { id } = params;
+    
+    // Удаляем из базы
+    await db.ref(`projects/${id}`).remove();
+    
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error deleting project:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    if (!db || !Object.keys(db).length) {
+      return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
+    }
+    const params = await context.params;
+    const { id } = params;
+    const body = await request.json();
+
+    const projectRef = db.ref(`projects/${id}`);
+    await projectRef.update(body);
 
     return NextResponse.json({ success: true });
-
   } catch (error) {
-    console.error('API Error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to delete project';
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error('Error updating project:', error);
+    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }

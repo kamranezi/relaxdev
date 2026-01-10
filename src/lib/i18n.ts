@@ -13,6 +13,7 @@ export const translations = {
       active: 'Активен',
       building: 'Сборка',
       error: 'Ошибка',
+      live: 'Активен',
     },
     timeAgo: {
       justNow: 'Только что',
@@ -25,7 +26,8 @@ export const translations = {
     noProjectsTitle: 'Нет активных проектов',
     noProjectsDescription: 'Ваш список контейнеров в Яндекс Облаке пуст.',
     overview: 'Обзор',
-    envVars: 'Переменные И секреты',
+    settings: 'Настройки',
+    envVars: 'Переменные и секреты',
     logs: 'Логи',
     owner: 'Владелец',
     domain: 'Домен',
@@ -48,6 +50,19 @@ export const translations = {
     saveVarError: 'Ошибка сохранения переменной',
     deleteVarError: 'Ошибка удаления переменной',
     copyError: 'Ошибка копирования',
+    
+    // --- НОВЫЕ КЛЮЧИ ДЛЯ НАСТРОЕК ---
+    autodeploy: 'Автодеплой (Push-to-Deploy)',
+    autodeployDescription: 'Автоматически запускать сборку при пуше в основную ветку.',
+    autodeploySuccess: 'Настройки автодеплоя обновлены.',
+    autodeployError: 'Ошибка обновления настроек автодеплоя.',
+    publicProject: 'Публичный проект',
+    publicProjectDescription: 'Разрешить всем пользователям в Интернете просматривать этот проект.',
+    // ---------------------------------
+
+    warnings: {
+        title: 'Проблемы со сборкой'
+    },
   },
   en: {
     projects: 'Projects',
@@ -61,6 +76,7 @@ export const translations = {
       active: 'Live',
       building: 'Building',
       error: 'Error',
+      live: 'Live',
     },
     timeAgo: {
         justNow: 'Just now',
@@ -73,6 +89,7 @@ export const translations = {
     noProjectsTitle: 'No active projects',
     noProjectsDescription: 'Your Yandex Cloud container list is empty.',
     overview: 'Overview',
+    settings: 'Settings',
     envVars: 'Environment Variables',
     logs: 'Logs',
     owner: 'Owner',
@@ -96,6 +113,19 @@ export const translations = {
     saveVarError: 'Error saving variable',
     deleteVarError: 'Error deleting variable',
     copyError: 'Copy Error',
+
+    // --- НОВЫЕ КЛЮЧИ ДЛЯ НАСТРОЕК ---
+    autodeploy: 'Autodeploy (Push-to-Deploy)',
+    autodeployDescription: 'Automatically trigger a new build on push to the main branch.',
+    autodeploySuccess: 'Autodeploy settings updated.',
+    autodeployError: 'Error updating autodeploy settings.',
+    publicProject: 'Public Project',
+    publicProjectDescription: 'Allow anyone on the internet to view this project.',
+    // ---------------------------------
+
+    warnings: {
+        title: 'Build warnings'
+    },
   },
 };
 

@@ -16,6 +16,7 @@ export interface Project {
   owner: string; // email пользователя-владельца
   ownerLogin?: string; // login пользователя (для GitHub)
   isPublic: boolean;
+  autodeploy?: boolean; // <-- Добавлено поле
   envVars?: ProjectEnvVar[]; // переменные окружения
   buildErrors?: string[]; // ошибки сборки
   missingEnvVars?: string[]; // отсутствующие переменные окружения
@@ -24,4 +25,3 @@ export interface Project {
   createdAt: string;
   updatedAt: string;
 }
-

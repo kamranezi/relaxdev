@@ -4,18 +4,27 @@ import { Octokit } from '@octokit/rest';
 
 export async function POST(
   request: NextRequest,
-  context: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: projectId } = context.params;
+    // 1. ПРОВЕРКА
+    if (!db || !adminAuth) {
+        return NextResponse.json({ error: 'Firebase not initialized' }, { status: 500 });
+    }
+
+    const params = await context.params;
+    const projectId = params.id;
 
     const idToken = request.headers.get('authorization')?.split('Bearer ')[1];
     if (!idToken) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+    
+    // TS знает, что adminAuth существует
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
     
+    // TS знает, что db существует
     const adminRef = db.ref(`admins/${uid}`);
     const adminSnapshot = await adminRef.once('value');
     const isAdmin = adminSnapshot.val() === true;
@@ -34,11 +43,10 @@ export async function POST(
     const githubToken = user?.githubAccessToken;
 
     if (!githubToken) {
-        return NextResponse.json({ error: 'GitHub token not found. Please re-login with GitHub.' }, { status: 400 });
+        return NextResponse.json({ error: 'GitHub token not found. Please re-login.' }, { status: 400 });
     }
 
     const octokit = new Octokit({ auth: githubToken });
-
     const [owner, repo] = project.repoUrl.replace('https://github.com/', '').split('/');
 
     await octokit.actions.createWorkflowDispatch({
@@ -56,11 +64,10 @@ export async function POST(
       updatedAt: new Date().toISOString(),
     });
 
-    return NextResponse.json({ success: true, message: 'Redeployment successfully started' });
+    return NextResponse.json({ success: true, message: 'Redeploy started' });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Redeploy API Error:', error);
-    const message = error instanceof Error ? error.message : 'Failed to start redeployment';
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
   }
 }
