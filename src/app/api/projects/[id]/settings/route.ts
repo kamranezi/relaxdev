@@ -3,10 +3,9 @@ import { db, adminAuth } from '@/lib/firebase-admin';
 
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  context: { params: Promise<{ id: string }> } // Promise важен для Next.js 15
 ) {
   try {
-    // 1. Проверяем инициализацию Firebase
     if (!db || !adminAuth) {
       return NextResponse.json({ error: 'Firebase not initialized' }, { status: 500 });
     }
@@ -14,7 +13,7 @@ export async function POST(
     const params = await context.params;
     const projectId = params.id;
 
-    // 2. Проверяем авторизацию
+    // Авторизация
     const authHeader = request.headers.get('Authorization');
     if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -24,11 +23,9 @@ export async function POST(
     const decodedToken = await adminAuth.verifyIdToken(token);
     const userEmail = decodedToken.email;
 
-    // 3. Получаем данные (autodeploy)
     const body = await request.json();
     const { autodeploy } = body;
 
-    // 4. Проверяем права доступа в Realtime Database
     const projectRef = db.ref(`projects/${projectId}`);
     const snapshot = await projectRef.once('value');
     const project = snapshot.val();
@@ -37,13 +34,16 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Проверка: владелец ли это?
-    if (project.owner !== userEmail) {
-      // Можно добавить проверку на админа, если нужно
+    // Проверка прав
+    const adminRef = db.ref(`admins/${decodedToken.uid}`);
+    const adminSnapshot = await adminRef.once('value');
+    const isAdmin = adminSnapshot.val() === true;
+
+    if (project.owner !== userEmail && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // 5. Обновляем настройку
+    // Обновление
     await projectRef.update({
       autodeploy: autodeploy === true,
       updatedAt: new Date().toISOString(),
@@ -52,7 +52,7 @@ export async function POST(
     return NextResponse.json({ success: true, autodeploy });
 
   } catch (error: any) {
-    console.error('Settings update error:', error);
+    console.error('Settings API Error:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
