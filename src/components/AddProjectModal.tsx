@@ -1,4 +1,3 @@
-// src/components/AddProjectModal.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -18,7 +17,8 @@ interface AddProjectModalProps {
     gitUrl: string, 
     projectName: string, 
     gitToken: string | undefined, 
-    envVars: ProjectEnvVar[] | undefined, 
+    // ⭐ ИЗМЕНЕНИЕ: Разрешаем null
+    envVars: ProjectEnvVar[] | null, 
     isPublic: boolean, 
     autodeploy: boolean
   ) => Promise<void>;
@@ -130,7 +130,8 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
         gitUrl, 
         projectName, 
         '', 
-        envVars.length > 0 ? envVars : undefined, 
+        // ⭐ ИЗМЕНЕНИЕ: Если массив пуст, отправляем null
+        envVars.length > 0 ? envVars : null, 
         isPublic, 
         autodeploy
       );
@@ -162,7 +163,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
             ) : (
                 <div className="flex flex-col gap-4 w-full">
                     {selectedRepo ? (
-                        /* Исправленная карточка репозитория */
                         <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between w-full max-w-full overflow-hidden">
                             <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                                 <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
