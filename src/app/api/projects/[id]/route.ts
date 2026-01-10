@@ -1,200 +1,138 @@
 import { NextResponse } from 'next/server';
 import { db, adminAuth } from "@/lib/firebase-admin";
-import { getContainerByName, deleteContainer } from '@/lib/yandex';
+import { getContainerByName, deleteContainer, deleteProjectRegistry } from '@/lib/yandex'; // Импорт всех функций удаления
 
 // --- GET: Получение проекта ---
-export async function GET(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    if (!db || !adminAuth) {
-      return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
-    }
+    if (!db || !adminAuth) return NextResponse.json({ error: "No DB" }, { status: 500 }); // Проверка БД
 
-    const params = await context.params;
-    const id = params.id;
-
-    // --- Авторизация ---
+    const { id } = await context.params;
     const authHeader = request.headers.get('Authorization');
-    let currentUserEmail = null;
-    let isAdmin = false;
+    let currentUserEmail = null, isAdmin = false;
 
     if (authHeader?.startsWith('Bearer ')) {
       try {
         const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        currentUserEmail = decodedToken.email ? decodedToken.email.toLowerCase() : null;
+        const decoded = await adminAuth.verifyIdToken(token);
+        currentUserEmail = decoded.email?.toLowerCase() || null;
         
-        // Проверяем isAdmin внутри профиля пользователя users/{uid}
-        const userRef = db.ref(`users/${decodedToken.uid}`);
-        const userSnapshot = await userRef.once('value');
-        isAdmin = userSnapshot.val()?.isAdmin === true;
-      } catch (e) {
-        console.warn('Invalid token check:', e);
-      }
+        // Проверка админа в двух местах: профиль (users) и старая ветка (admins)
+        const [uSnap, aSnap] = await Promise.all([
+            db.ref(`users/${decoded.uid}`).once('value'),
+            db.ref(`admins/${decoded.uid}`).once('value')
+        ]);
+        isAdmin = (uSnap.val()?.isAdmin === true) || (aSnap.val() === true);
+      } catch (e) { console.warn(e); }
     }
 
     const projectRef = db.ref(`projects/${id}`);
-    const snapshot = await projectRef.once('value');
-    let project = snapshot.val();
+    const project = (await projectRef.once('value')).val();
 
-    if (!project) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    }
+    if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
 
-    const projectOwnerEmail = project.owner ? project.owner.toLowerCase() : '';
-    const isOwner = currentUserEmail && projectOwnerEmail === currentUserEmail;
+    const isOwner = currentUserEmail && project.owner?.toLowerCase() === currentUserEmail;
+    if (!project.isPublic && !isOwner && !isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-    // Проверка доступа (Публичный ИЛИ Владелец ИЛИ Админ)
-    if (!project.isPublic && !isOwner && !isAdmin) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    // --- Синхронизация с Яндексом ---
+    // Синхронизация с Yandex Cloud
     try {
         const container = await getContainerByName(project.id);
-        
         if (container) {
             const updates: any = {};
+            const newStatus = container.status === 'ACTIVE' ? 'Активен' : (['ERROR', 'STOPPED'].includes(container.status) ? 'Ошибка' : project.status);
             
-            let newStatus = project.status;
-            if (container.status === 'ACTIVE') newStatus = 'Активен';
-            else if (container.status === 'ERROR' || container.status === 'STOPPED') newStatus = 'Ошибка';
-            
-            if (newStatus !== project.status) {
-                updates.status = newStatus;
-                project.status = newStatus;
-            }
-
-            if (container.url && (!project.domain || project.domain !== container.url)) {
-                updates.domain = container.url;
-                project.domain = container.url;
-            }
-
-            if (Object.keys(updates).length > 0) {
-                await projectRef.update(updates);
-            }
+            if (newStatus !== project.status) { updates.status = newStatus; project.status = newStatus; }
+            if (container.url && project.domain !== container.url) { updates.domain = container.url; project.domain = container.url; }
+            if (Object.keys(updates).length) await projectRef.update(updates);
         }
-    } catch (e) {
-        console.error('Failed to sync with Yandex:', e);
-    }
+    } catch (e) { console.error('Sync failed:', e); }
 
-    // Добавляем флаг прав редактирования
     const canEdit = !!(isAdmin || isOwner);
     project.canEdit = canEdit;
 
-    // Очистка секретов для гостей (не владельцев и не админов)
-    if (!canEdit) {
-        delete project.envVars;
-        delete project.gitToken;
-        delete project.deploymentLogs;
+    if (canEdit) {
+        // Нормализация envVars: превращаем объект (Sparse Array) или null в []
+        let vars = project.envVars;
+        if (vars && typeof vars === 'object' && !Array.isArray(vars)) vars = Object.values(vars);
+        project.envVars = Array.isArray(vars) ? vars : []; 
+    } else {
+        delete project.envVars; delete project.gitToken; delete project.deploymentLogs; // Удаляем секреты для гостей
     }
 
     return NextResponse.json(project);
-
-  } catch (error) {
-    console.error('Error fetching project:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
+  } catch (e) { return NextResponse.json({ error: 'Server Error' }, { status: 500 }); }
 }
 
-// --- DELETE: Удаление проекта и контейнера ---
-export async function DELETE(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+// --- DELETE: Удаление проекта ---
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
-        if (!db || !adminAuth) return NextResponse.json({error: "No DB"}, {status:500});
-        const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) return NextResponse.json({error:'Unauthorized'}, {status:401});
+        if (!db || !adminAuth) return NextResponse.json({ error: "No DB" }, { status: 500 });
         
+        const authHeader = request.headers.get('Authorization');
+        if (!authHeader?.startsWith('Bearer ')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
         const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const currentUserEmail = decodedToken.email?.toLowerCase();
+        const decoded = await adminAuth.verifyIdToken(token);
+        const email = decoded.email?.toLowerCase();
 
-        // Проверка Админа
-        const userRef = db.ref(`users/${decodedToken.uid}`);
-        const userSnapshot = await userRef.once('value');
-        const isAdmin = userSnapshot.val()?.isAdmin === true;
+        // Проверка прав (Админ или Владелец)
+        const [uSnap, aSnap] = await Promise.all([
+            db.ref(`users/${decoded.uid}`).once('value'),
+            db.ref(`admins/${decoded.uid}`).once('value')
+        ]);
+        const isAdmin = (uSnap.val()?.isAdmin === true) || (aSnap.val() === true);
 
-        const params = await context.params;
-        const projectId = params.id;
-        const projectRef = db.ref(`projects/${projectId}`);
-        const projectSnapshot = await projectRef.once('value');
-        const project = projectSnapshot.val();
+        const { id } = await context.params;
+        const projectRef = db.ref(`projects/${id}`);
+        const project = (await projectRef.once('value')).val();
 
-        if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+        if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        if (project.owner?.toLowerCase() !== email && !isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-        const isOwner = project.owner?.toLowerCase() === currentUserEmail;
-
-        if (!isOwner && !isAdmin) {
-             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
-
-        // 1. УДАЛЕНИЕ КОНТЕЙНЕРА В ЯНДЕКСЕ
+        // 1. Удаляем контейнер (Runtime)
         try {
-            // Ищем контейнер по имени проекта (ID проекта)
-            const container = await getContainerByName(projectId);
-            if (container && container.id) {
-                console.log(`Deleting container ${container.name} (${container.id})...`);
-                await deleteContainer(container.id);
-            } else {
-                console.warn(`Container for project ${projectId} not found in Yandex, skipping cloud deletion.`);
-            }
-        } catch (yandexError) {
-            console.error('Failed to delete Yandex container:', yandexError);
-            // Продолжаем удаление из БД, даже если Яндекс выдал ошибку (чтобы не блокировать удаление "призраков")
-        }
+            const container = await getContainerByName(id);
+            if (container?.id) await deleteContainer(container.id);
+        } catch (e) { console.error('Container delete failed:', e); }
 
-        // 2. УДАЛЕНИЕ ИЗ БАЗЫ ДАННЫХ
+        // 2. Удаляем образы (Registry)
+        try { await deleteProjectRegistry(id); } catch (e) { console.error('Registry delete failed:', e); }
+
+        // 3. Удаляем из БД
         await projectRef.remove();
-        
         return NextResponse.json({ success: true });
-    } catch(e) { 
-        console.error(e);
-        return NextResponse.json({error:'Error'}, {status:500}); 
-    }
+    } catch (e) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
 }
 
-// --- PUT: Обновление проекта (переменные окружения и т.д.) ---
-export async function PUT(
-  request: Request,
-  context: { params: Promise<{ id: string }> }
-) {
+// --- PUT: Обновление ---
+export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
-        if (!db || !adminAuth) return NextResponse.json({error: "No DB"}, {status:500});
+        if (!db || !adminAuth) return NextResponse.json({ error: "No DB" }, { status: 500 });
+        
         const authHeader = request.headers.get('Authorization');
-        if (!authHeader?.startsWith('Bearer ')) return NextResponse.json({error:'Unauthorized'}, {status:401});
-        
+        if (!authHeader?.startsWith('Bearer ')) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
         const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await adminAuth.verifyIdToken(token);
-        const currentUserEmail = decodedToken.email?.toLowerCase();
-
-        const userRef = db.ref(`users/${decodedToken.uid}`);
-        const userSnapshot = await userRef.once('value');
-        const isAdmin = userSnapshot.val()?.isAdmin === true;
-
-        const params = await context.params;
-        const projectRef = db.ref(`projects/${params.id}`);
-        const projectSnapshot = await projectRef.once('value');
-        const project = projectSnapshot.val();
-
-        if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+        const decoded = await adminAuth.verifyIdToken(token);
         
-        const isOwner = project.owner?.toLowerCase() === currentUserEmail;
+        // Проверка прав
+        const [uSnap, aSnap] = await Promise.all([
+            db.ref(`users/${decoded.uid}`).once('value'),
+            db.ref(`admins/${decoded.uid}`).once('value')
+        ]);
+        const isAdmin = (uSnap.val()?.isAdmin === true) || (aSnap.val() === true);
 
-        if (!isOwner && !isAdmin) {
-             return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-        }
+        const { id } = await context.params;
+        const projectRef = db.ref(`projects/${id}`);
+        const project = (await projectRef.once('value')).val();
+
+        if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+        if (project.owner?.toLowerCase() !== decoded.email?.toLowerCase() && !isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
         const body = await request.json();
-        delete body.owner; // Не даем менять владельца
-
+        delete body.owner; // Запрет смены владельца
+        
         await projectRef.update(body);
         return NextResponse.json({ success: true });
-    } catch(e) { 
-        console.error(e);
-        return NextResponse.json({error:'Error'}, {status:500}); 
-    }
+    } catch (e) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
 }

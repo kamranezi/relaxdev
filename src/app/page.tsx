@@ -134,7 +134,7 @@ export default function Home() {
     return date.toLocaleDateString(language === 'ru' ? 'ru-RU' : 'en-US');
   };
 
-  const handleDeploy = async (gitUrl: string, projectName: string, gitToken: string | undefined, envVars: { key: string; value: string }[] | undefined, isPublic: boolean, autodeploy: boolean) => {
+  const handleDeploy = async (gitUrl: string, projectName: string, gitToken: string | undefined, envVars: { key: string; value: string }[] | null, isPublic: boolean, autodeploy: boolean) => {
     if (!user) throw new Error('User not authenticated');
     try {
         const token = await user.getIdToken();
