@@ -17,11 +17,11 @@ export interface Project {
   ownerLogin?: string | null; // ⭐ ИСПРАВЛЕНО: добавили | null, так как база может вернуть null
   isPublic: boolean;
   autodeploy?: boolean; // Опционально, так как в старых проектах может не быть
-  envVars?: ProjectEnvVar[]; 
-  buildErrors?: string[]; 
-  missingEnvVars?: string[]; 
-  deploymentLogs?: string; 
-  gitToken?: string; 
+  envVars?: ProjectEnvVar[];
+  buildErrors?: string[];
+  missingEnvVars?: string[];
+  deploymentLogs?: string;
+  gitToken?: string;
   createdAt: string;
   updatedAt: string;
 }
