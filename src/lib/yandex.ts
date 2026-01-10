@@ -79,7 +79,7 @@ export async function listContainers(folderId: string) {
   return response.json();
 }
 
-// ⭐ Добавляем эту функцию, так как она используется в [id]/route.ts
+// ⭐ Новая функция для получения конкретного контейнера по имени
 export async function getContainerByName(name: string) {
     try {
         const folderId = process.env.YC_FOLDER_ID;

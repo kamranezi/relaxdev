@@ -1,40 +1,43 @@
+// src/app/api/projects/[id]/route.ts
+
 import { NextResponse } from 'next/server';
 import { db, adminAuth } from "@/lib/firebase-admin";
-import { listContainers } from '@/lib/yandex';
-
-// Хелпер для получения статуса
-async function getContainerStatus(projectName: string) {
-  try {
-    const folderId = process.env.YC_FOLDER_ID;
-    if (!folderId) return null;
-
-    const data = await listContainers(folderId);
-    // @ts-ignore
-    const container = data.containers?.find((c: any) => c.name === projectName);
-    
-    if (container) {
-       if (container.status === 'ACTIVE') return 'Активен';
-       if (container.status === 'ERROR' || container.status === 'STOPPED') return 'Ошибка';
-    }
-    return null;
-  } catch (e) {
-    console.error('Failed to fetch Yandex status:', e);
-    return null;
-  }
-}
+import { getContainerByName } from '@/lib/yandex';
 
 export async function GET(
   request: Request,
-  // В Next.js 15 params нужно ждать, поэтому типизируем как Promise
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!db || !Object.keys(db).length) {
+    // Проверка БД
+    if (!db || !adminAuth) {
       return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
     }
-    const params = await context.params; // Ждем параметры!
+
+    const params = await context.params;
     const id = params.id;
 
+    // 1. Пытаемся получить токен, но НЕ блокируем сразу (для публичных проектов)
+    const authHeader = request.headers.get('Authorization');
+    let currentUserEmail = null;
+    let isAdmin = false;
+
+    if (authHeader?.startsWith('Bearer ')) {
+      try {
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await adminAuth.verifyIdToken(token);
+        currentUserEmail = decodedToken.email;
+        
+        // Проверяем админа
+        const adminRef = db.ref(`admins/${decodedToken.uid}`);
+        const adminSnapshot = await adminRef.once('value');
+        isAdmin = adminSnapshot.val() === true;
+      } catch (e) {
+        console.warn('Invalid token check:', e);
+      }
+    }
+
+    // 2. Получаем проект из базы
     const projectRef = db.ref(`projects/${id}`);
     const snapshot = await projectRef.once('value');
     let project = snapshot.val();
@@ -43,17 +46,55 @@ export async function GET(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // ⭐ ПОЛУЧАЕМ РЕАЛЬНЫЙ СТАТУС ИЗ YANDEX
-    const realStatus = await getContainerStatus(project.name);
-    
-    // Если статус в Яндексе отличается от базы — обновляем объект (и базу для порядка)
-    if (realStatus && realStatus !== project.status) {
-        project.status = realStatus;
-        // Фоново обновляем базу, не блокируя ответ
-        projectRef.update({ status: realStatus }).catch(console.error);
+    // 3. Проверка прав доступа
+    const isOwner = currentUserEmail && project.owner === currentUserEmail;
+    // Разрешаем если: Публичный ИЛИ Владелец ИЛИ Админ
+    if (!project.isPublic && !isOwner && !isAdmin) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    // 4. ⭐ СИНХРОНИЗАЦИЯ С ЯНДЕКСОМ (Статус и Домен)
+    try {
+        const container = await getContainerByName(project.name);
+        if (container) {
+            const updates: any = {};
+            
+            // Обновляем статус
+            let newStatus = project.status;
+            if (container.status === 'ACTIVE') newStatus = 'Активен';
+            else if (container.status === 'ERROR' || container.status === 'STOPPED') newStatus = 'Ошибка';
+            
+            if (newStatus !== project.status) {
+                updates.status = newStatus;
+                project.status = newStatus;
+            }
+
+            // ⭐ Обновляем домен (ссылку), если она есть в контейнере
+            if (container.url && container.url !== project.domain) {
+                updates.domain = container.url;
+                project.domain = container.url;
+            }
+
+            // Сохраняем изменения в базу
+            if (Object.keys(updates).length > 0) {
+                // update выполняем фоново, чтобы не тормозить ответ пользователю (но await надежнее)
+                await projectRef.update(updates);
+            }
+        }
+    } catch (e) {
+        console.error('Failed to sync with Yandex:', e);
+        // Не блокируем ответ, если Яндекс недоступен, отдаем данные из базы
+    }
+
+    // 5. Очистка секретных данных для гостей
+    if (!isOwner && !isAdmin) {
+        delete project.envVars;
+        delete project.gitToken;
+        delete project.deploymentLogs;
     }
 
     return NextResponse.json(project);
+
   } catch (error) {
     console.error('Error fetching project:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
@@ -65,9 +106,18 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!db || !Object.keys(db).length) {
+    if (!db || !adminAuth) {
       return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
     }
+
+    // Проверка авторизации (обязательна для удаления)
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.split('Bearer ')[1];
+    await adminAuth.verifyIdToken(token); // Просто проверяем валидность
+
     const params = await context.params;
     const { id } = params;
     
@@ -86,9 +136,18 @@ export async function PUT(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    if (!db || !Object.keys(db).length) {
+    if (!db || !adminAuth) {
       return NextResponse.json({ error: "Firebase connection not initialized" }, { status: 500 });
     }
+
+    // Проверка авторизации (обязательна для редактирования)
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const token = authHeader.split('Bearer ')[1];
+    await adminAuth.verifyIdToken(token);
+
     const params = await context.params;
     const { id } = params;
     const body = await request.json();
