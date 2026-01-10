@@ -2,10 +2,11 @@
 
 import { Project } from '@/types';
 import { Language, getTranslation } from '@/lib/i18n';
-import { CheckCircle2, Loader2, XCircle, ExternalLink, AlertCircle, RefreshCw, Globe, User as UserIcon } from 'lucide-react';
+import { CheckCircle2, Loader2, XCircle, AlertCircle, RefreshCw, Globe, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useState } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation'; // Добавили useRouter
 
 interface ProjectCardProps {
   project: Project;
@@ -15,6 +16,7 @@ interface ProjectCardProps {
   ownerLogin?: string | null; 
 }
 
+// ... GithubIcon оставляем как есть ...
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -36,10 +38,12 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogin }: ProjectCardProps) {
   const t = getTranslation(language);
   const { user } = useAuth();
+  const router = useRouter(); // Инициализируем роутер
   const [isRedeploying, setIsRedeploying] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
   const handleRedeploy = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Остановить всплытие
+    e.stopPropagation(); 
     if (!user || isRedeploying) return;
 
     setIsRedeploying(true);
@@ -114,16 +118,20 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
 
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
-  // Если domain есть, формируем ссылку, иначе null
   const domainUrl = project.domain ? (project.domain.startsWith('http') ? project.domain : `https://${project.domain}`) : null;
   const hasWarnings = (project.buildErrors && project.buildErrors.length > 0) || 
                      (project.missingEnvVars && project.missingEnvVars.length > 0);
+
+  // ИСПРАВЛЕНИЕ ЗДЕСЬ: Используем router.push вместо window.location.href
+  const handleCardClick = () => {
+    router.push(`/projects/${project.id}`);
+  };
 
   return (
     <div 
       className="bg-[#1A1A1A] rounded-lg shadow-lg p-5 hover:shadow-cyan-500/20 hover:border-gray-800 transition-all duration-300 group flex flex-col justify-between h-full border border-transparent"
     >
-      <div onClick={() => window.location.href = `/projects/${project.id}`} className="cursor-pointer flex-grow">
+      <div onClick={handleCardClick} className="cursor-pointer flex-grow">
         <div className="flex items-start justify-between mb-3">
           <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors break-all pr-2">
             {project.name}
@@ -189,11 +197,23 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
           </div>
         </div>
         <div className="flex items-center gap-3">
-            {ownerLogin && (
+            {ownerLogin && !imageError ? (
               <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors">
-                <Image src={`https://github.com/${ownerLogin}.png`} alt={ownerLogin} width={20} height={20} className="rounded-full" />
+                <Image 
+                  src={`https://github.com/${ownerLogin}.png`} 
+                  alt={ownerLogin} 
+                  width={20} 
+                  height={20} 
+                  className="rounded-full" 
+                  onError={() => setImageError(true)}
+                  unoptimized
+                />
               </a>
-            )}
+            ) : ownerLogin ? (
+                <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-400">
+                   <UserIcon className="h-5 w-5" />
+                </a>
+             ) : null}
           <p className="text-sm text-gray-500">{project.lastDeployed}</p>
         </div>
       </div>

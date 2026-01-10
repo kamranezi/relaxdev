@@ -51,7 +51,11 @@ export const translations = {
     deleteVarError: 'Ошибка удаления переменной',
     copyError: 'Ошибка копирования',
     
-    // --- НОВЫЕ КЛЮЧИ ДЛЯ НАСТРОЕК ---
+    // Новые ключи для мобильных кнопок
+    buildShort: 'Редепл', 
+    deleteShort: 'Удал.',
+
+    // --- КЛЮЧИ ДЛЯ НАСТРОЕК ---
     autodeploy: 'Автодеплой (Push-to-Deploy)',
     autodeployDescription: 'Автоматически запускать сборку при пуше в основную ветку.',
     autodeploySuccess: 'Настройки автодеплоя обновлены.',
@@ -113,8 +117,12 @@ export const translations = {
     saveVarError: 'Error saving variable',
     deleteVarError: 'Error deleting variable',
     copyError: 'Copy Error',
+    
+    // New keys for mobile buttons
+    buildShort: 'Build',
+    deleteShort: 'Del',
 
-    // --- НОВЫЕ КЛЮЧИ ДЛЯ НАСТРОЕК ---
+    // --- КЛЮЧИ ДЛЯ НАСТРОЕК ---
     autodeploy: 'Autodeploy (Push-to-Deploy)',
     autodeployDescription: 'Automatically trigger a new build on push to the main branch.',
     autodeploySuccess: 'Autodeploy settings updated.',

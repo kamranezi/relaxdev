@@ -1,5 +1,6 @@
 'use client';
 
+// ... импорты остаются прежними ...
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
@@ -25,6 +26,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings } from '@/components/Settings';
 import { useLanguage } from '@/components/LanguageContext';
 
+// ... GithubIcon ...
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -61,6 +63,7 @@ export default function ProjectDetailPage() {
   const t = getTranslation(language);
   const projectId = params.id as string;
 
+  // ... fetchProject без изменений ...
   const fetchProject = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -90,6 +93,7 @@ export default function ProjectDetailPage() {
     }
   }, [projectId, fetchProject]);
 
+  // ... handleRedeploy ...
   const handleRedeploy = async () => {
     if (!project || !user) return;
     setIsRedeploying(true);
@@ -105,14 +109,15 @@ export default function ProjectDetailPage() {
       }
     } catch (error) {
       console.error('Ошибка редеплоя:', error);
-      alert('Ошибка редеплоя');
+      alert(t.redeployError);
     } finally {
       setIsRedeploying(false);
     }
   };
 
+  // ... handleDelete (ИСПРАВЛЕН ALERT) ...
   const handleDelete = async () => {
-    if (!user || !confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этот проект? Это удалит также контейнер.' : 'Are you sure? This will delete the container.')) {
+    if (!user || !confirm(t.deleteConfirmation)) {
       return;
     }
     setIsDeleting(true);
@@ -125,16 +130,17 @@ export default function ProjectDetailPage() {
       if (res.ok) {
         router.push('/');
       } else {
-          alert('Failed to delete project');
+          alert(t.deleteError);
       }
     } catch (error) {
       console.error('Ошибка удаления:', error);
-      alert('Ошибка удаления проекта');
+      alert(t.deleteError);
     } finally {
       setIsDeleting(false);
     }
   };
 
+  // ... handleAddEnvVar / handleRemoveEnvVar (ИСПРАВЛЕНЫ ALERT) ...
   const handleAddEnvVar = async () => {
     if (!project || !newEnvKey.trim() || !newEnvValue.trim() || !user) return;
     setIsSaving(true);
@@ -156,7 +162,7 @@ export default function ProjectDetailPage() {
       }
     } catch (error) {
       console.error('Ошибка сохранения переменной:', error);
-      alert('Ошибка сохранения переменной');
+      alert(t.saveVarError);
     } finally {
       setIsSaving(false);
     }
@@ -181,12 +187,13 @@ export default function ProjectDetailPage() {
       }
     } catch (error) {
       console.error('Ошибка удаления переменной:', error);
-      alert('Ошибка удаления переменной');
+      alert(t.deleteVarError);
     } finally {
       setIsSaving(false);
     }
   };  
 
+  // ... copyToClipboard ...
   const copyToClipboard = async (text: string, key: string) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -208,9 +215,9 @@ export default function ProjectDetailPage() {
   if (!project) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-[#0A0A0A] text-gray-400">
-        <p>Проект не найден</p>
+        <p>{t.projectNotFound}</p>
         <Button onClick={() => router.push('/')} className="mt-4">
-          Вернуться на главную
+          {t.backToHome}
         </Button>
       </div>
     );
@@ -225,7 +232,7 @@ export default function ProjectDetailPage() {
         icon: CheckCircle2,
         color: 'text-green-500',
         bgColor: 'bg-green-500/10',
-        text: language === 'ru' ? 'Активен' : 'Live',
+        text: t.status.active,
       };
     }
     if (isBuilding) {
@@ -233,7 +240,7 @@ export default function ProjectDetailPage() {
         icon: Loader2,
         color: 'text-yellow-500',
         bgColor: 'bg-yellow-500/10',
-        text: language === 'ru' ? 'Сборка' : 'Building',
+        text: t.status.building,
         animate: true,
       };
     }
@@ -241,15 +248,13 @@ export default function ProjectDetailPage() {
       icon: XCircle,
       color: 'text-red-500',
       bgColor: 'bg-red-500/10',
-      text: language === 'ru' ? 'Ошибка' : 'Error',
+      text: t.status.error,
     };
   };
 
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
   const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
-
-  // ⭐ ПРОВЕРКА ПРАВ: Если сервер прислал переменные окружения, значит у нас есть доступ к управлению (Админ или Владелец)
   const canManage = !!project.envVars;
 
   return (
@@ -261,7 +266,7 @@ export default function ProjectDetailPage() {
           className="mb-4 md:mb-6 text-gray-400 hover:text-white pl-0"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          {language === 'ru' ? 'Назад' : 'Back'}
+          {t.back}
         </Button>
 
         <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-4 sm:p-6 mb-6">
@@ -274,6 +279,7 @@ export default function ProjectDetailPage() {
                   {statusConfig.text}
                 </span>
               </div>
+              {/* ... Ссылки на репо и домен ... */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-400">
                 <a
                   href={project.repoUrl}
@@ -298,7 +304,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* Кнопки управления показываем тем, у кого есть права */}
+            {/* ИСПРАВЛЕНИЕ: Кнопки управления с правильными переводами */}
             {canManage && (
                 <div className="flex gap-2 w-full md:w-auto">
                 <Button
@@ -311,8 +317,10 @@ export default function ProjectDetailPage() {
                     ) : (
                     <>
                         <RefreshCw className="h-4 w-4 mr-2" />
-                        <span className="hidden md:inline">{language === 'ru' ? 'Редеплой' : 'Redeploy'}</span>
-                        <span className="md:hidden">Build</span>
+                        {/* Для десктопа - полный текст */}
+                        <span className="hidden md:inline">{t.redeploy}</span>
+                        {/* Для мобильных - короткий текст из переводов */}
+                        <span className="md:hidden">{t.buildShort || t.redeploy}</span>
                     </>
                     )}
                 </Button>
@@ -327,8 +335,10 @@ export default function ProjectDetailPage() {
                     ) : (
                     <>
                         <Trash2 className="h-4 w-4 mr-2" />
-                        <span className="hidden md:inline">{language === 'ru' ? 'Удалить' : 'Delete'}</span>
-                        <span className="md:hidden">Del</span>
+                         {/* Для десктопа - полный текст */}
+                        <span className="hidden md:inline">{t.delete}</span>
+                         {/* Для мобильных - короткий текст из переводов */}
+                        <span className="md:hidden">{t.deleteShort || t.delete}</span>
                     </>
                     )}
                 </Button>
@@ -337,18 +347,20 @@ export default function ProjectDetailPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
+             {/* ... Контент табов остается прежним, только убедитесь что используется 't' ... */}
             <div className="w-full overflow-x-auto pb-2 -mb-2 sm:mb-0 sm:pb-0 scrollbar-none">
                 <TabsList className="bg-black/50 w-full sm:w-auto flex justify-start min-w-[320px]">
                   <TabsTrigger className="flex-1" value="overview">{t.overview}</TabsTrigger>
-                  {/* Скрываем табы управления от гостей */}
                   {canManage && <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>}
                   {canManage && <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>}
                   {canManage && <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>}
                 </TabsList>
             </div>
-
+            
+            {/* ... Rest of the component (TabsContent) logic stays same, it was already using 't' ... */}
             <TabsContent value="overview" className="mt-6">
-              <div className="space-y-4">
+                {/* ... Сокращенный код для примера, логика внутри TabsContent была правильной ... */}
+                 <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">{t.owner}</div>
@@ -371,7 +383,8 @@ export default function ProjectDetailPage() {
                     <div className="text-white font-mono text-sm truncate">{project.domain}</div>
                   </div>
                 </div>
-
+                
+                 {/* ... Блок ошибок ... */}
                 {(project.buildErrors && project.buildErrors.length > 0) || 
                  (project.missingEnvVars && project.missingEnvVars.length > 0) ? (
                   <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4">
@@ -408,12 +421,12 @@ export default function ProjectDetailPage() {
                 ) : null}
               </div>
             </TabsContent>
-
-            {/* Контент табов рендерим только для управляющих (Владелец/Админ) */}
+            
             {canManage && (
                 <>
-                    <TabsContent value="env" className="mt-6">
-                    <div className="space-y-4">
+                 <TabsContent value="env" className="mt-6">
+                    {/* ... Тут также просто используем 't', код внутри был верен ... */}
+                     <div className="space-y-4">
                         <div className="bg-black/30 rounded-lg p-4">
                         <div className="text-sm font-medium text-gray-300 mb-3">
                             {t.addEnvVar}
@@ -448,7 +461,7 @@ export default function ProjectDetailPage() {
                             </Button>
                         </div>
                         </div>
-
+                        {/* ... Список переменных ... */}
                         <div className="space-y-2">
                         {(project.envVars || []).length === 0 ? (
                             <div className="text-center py-8 text-gray-500">
@@ -489,9 +502,8 @@ export default function ProjectDetailPage() {
                         )}
                         </div>
                     </div>
-                    </TabsContent>
-
-                    <TabsContent value="logs" className="mt-6">
+                 </TabsContent>
+                 <TabsContent value="logs" className="mt-6">
                     <div className="bg-black/30 rounded-lg p-4 overflow-x-auto">
                         <pre className="font-mono text-xs text-gray-300 whitespace-pre">
                         {project.deploymentLogs || t.noLogs}
@@ -508,6 +520,7 @@ export default function ProjectDetailPage() {
                     </TabsContent>
                 </>
             )}
+
           </Tabs>
         </div>
       </main>

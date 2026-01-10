@@ -1,7 +1,6 @@
-// src/components/LanguageContext.tsx
 'use client';
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Language } from '@/lib/i18n';
 
 interface LanguageContextType {
@@ -13,7 +12,21 @@ const LanguageContext = createContext<LanguageContextType | undefined>(undefined
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   // По умолчанию русский
-  const [language, setLanguage] = useState<Language>('ru');
+  const [language, setLanguageState] = useState<Language>('ru');
+
+  // При первой загрузке проверяем localStorage
+  useEffect(() => {
+    const savedLang = localStorage.getItem('app-language') as Language;
+    if (savedLang && (savedLang === 'ru' || savedLang === 'en')) {
+      setLanguageState(savedLang);
+    }
+  }, []);
+
+  // Обертка для сохранения в localStorage при смене
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem('app-language', lang);
+  };
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage }}>
