@@ -13,7 +13,6 @@ import { Label } from '@/components/ui/label';
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  // Добавили autodeploy в сигнатуру функции
   onDeploy: (
     gitUrl: string, 
     projectName: string, 
@@ -46,9 +45,8 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
   
-  // Новые состояния
   const [isPublic, setIsPublic] = useState(false);
-  const [autodeploy, setAutodeploy] = useState(true); // По умолчанию включен
+  const [autodeploy, setAutodeploy] = useState(true);
 
   const loadRepos = useCallback(async () => {
     if (!user) return;
@@ -94,6 +92,17 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
     setProjectName(repo.name.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
   };
 
+  const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const url = e.target.value;
+    setGitUrl(url);
+
+    const match = url.match(/github\.com\/[^\/]+\/([^\/]+?)(\.git)?$/);
+    if (match && match[1]) {
+        const repoName = match[1];
+        setProjectName(repoName.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
+    }
+  };
+
   const handleResetSelection = () => {
     setSelectedRepo(null);
     setGitUrl('');
@@ -116,7 +125,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
     if (!gitUrl || !projectName) return;
     setIsLoading(true);
     try {
-      // Передаем все параметры, включая autodeploy
       await onDeploy(
         gitUrl, 
         projectName, 
@@ -229,7 +237,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                          <label className="text-xs font-medium text-gray-400">Git URL</label>
                         <Input
                             value={gitUrl}
-                            onChange={(e) => setGitUrl(e.target.value)}
+                            onChange={handleUrlChange}
                             placeholder="https://github.com/..."
                             className="bg-black/50 border-gray-700"
                         />
@@ -307,8 +315,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
               </div>
             </div>
             
-            {/* Настройки проекта: Публичность и Автодеплой */}
-             <div className="space-y-4 pt-4 border-t border-gray-800">
+            <div className="space-y-4 pt-4 border-t border-gray-800">
                  <div className="flex items-center justify-between space-x-2">
                     <Label htmlFor="public-switch" className="cursor-pointer text-sm font-medium text-gray-300">
                         {language === 'ru' ? 'Сделать проект публичным' : 'Public Project'}

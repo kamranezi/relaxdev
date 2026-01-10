@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const userData = userSnapshot.val();
     const userGithubToken = userData?.githubAccessToken;
     
-    // ⭐ ИСПРАВЛЕНИЕ: Более надежное получение логина
+    // Получение логина
     const ownerLogin = userData?.login || userData?.githubUsername || ownerEmail.split('@')[0];
 
     if (!userGithubToken) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
       domain: '',
       owner: ownerEmail,
-      ownerLogin: ownerLogin || null, // ⭐ ИСПРАВЛЕНИЕ: null вместо undefined
+      ownerLogin: ownerLogin || null,
       isPublic: isPublic || false,
       autodeploy: autodeploy !== false,
       envVars: envVars || [],
@@ -72,10 +72,56 @@ export async function POST(request: NextRequest) {
       deploymentLogs: '',
       createdAt: now,
       updatedAt: now,
-      lastDeployed: now, // ⭐ ИСПРАВЛЕНИЕ: Добавлена дата
+      lastDeployed: now,
     };
 
     await projectRef.set(projectData);
+
+    // ⭐ ДОБАВЛЯЕМ ВЕБХУК ДЛЯ АВТОДЕПЛОЯ ⭐
+    if (autodeploy !== false) {
+      try {
+        const repoUrlParts = gitUrl.replace('https://github.com/', '').split('/');
+        const repoOwner = repoUrlParts[0];
+        const repoName = repoUrlParts[1];
+        
+        // URL вашего вебхука
+        const webhookUrl = `https://relaxdev.ru/api/webhook/github`;
+        
+        // Используем токен пользователя, чтобы добавить хук в ЕГО репозиторий
+        const userOctokit = new Octokit({ auth: userGithubToken });
+
+        // Проверяем существующие хуки, чтобы не дублировать
+        const hooks = await userOctokit.repos.listWebhooks({
+            owner: repoOwner,
+            repo: repoName,
+        });
+
+        const hookExists = hooks.data.find(h => h.config.url === webhookUrl);
+
+        if (!hookExists) {
+            await userOctokit.repos.createWebhook({
+                owner: repoOwner,
+                repo: repoName,
+                name: 'web',
+                active: true,
+                events: ['push'], 
+                config: {
+                    url: webhookUrl,
+                    content_type: 'json',
+                    insecure_ssl: '0',
+                    secret: process.env.WEBHOOK_SECRET, 
+                },
+            });
+            console.log(`[API] Webhook added to ${repoOwner}/${repoName}`);
+        } else {
+            console.log(`[API] Webhook already exists for ${repoOwner}/${repoName}`);
+        }
+      } catch (err) {
+        console.error('Failed to add webhook:', err);
+        // Не прерываем процесс создания, даже если хук не добавился (например, нет прав админа в репо)
+      }
+    }
+    // ⭐ КОНЕЦ БЛОКА ВЕБХУКА ⭐
 
     const envVarsString = envVars && envVars.length > 0 
       ? JSON.stringify(envVars) 
