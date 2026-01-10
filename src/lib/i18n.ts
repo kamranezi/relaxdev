@@ -51,17 +51,24 @@ export const translations = {
     deleteVarError: 'Ошибка удаления переменной',
     copyError: 'Ошибка копирования',
     
-    // Новые ключи для мобильных кнопок
-    buildShort: 'Редепл', 
+    // Кнопки для моб версии
+    buildShort: 'Билд', 
     deleteShort: 'Удал.',
 
-    // --- КЛЮЧИ ДЛЯ НАСТРОЕК ---
+    // Настройки
     autodeploy: 'Автодеплой (Push-to-Deploy)',
     autodeployDescription: 'Автоматически запускать сборку при пуше в основную ветку.',
     autodeploySuccess: 'Настройки автодеплоя обновлены.',
     autodeployError: 'Ошибка обновления настроек автодеплоя.',
     publicProject: 'Публичный проект',
     publicProjectDescription: 'Разрешить всем пользователям в Интернете просматривать этот проект.',
+
+    // --- НОВЫЕ КЛЮЧИ ДЛЯ ENV MANAGER ---
+    envListMode: 'Список',
+    envRawMode: 'Редактор (.env)',
+    uploadEnv: 'Загрузить .env',
+    saveChanges: 'Сохранить',
+    copy: 'Копировать',
     // ---------------------------------
 
     warnings: {
@@ -118,17 +125,24 @@ export const translations = {
     deleteVarError: 'Error deleting variable',
     copyError: 'Copy Error',
     
-    // New keys for mobile buttons
+    // Mobile buttons
     buildShort: 'Build',
     deleteShort: 'Del',
 
-    // --- КЛЮЧИ ДЛЯ НАСТРОЕК ---
+    // Settings
     autodeploy: 'Autodeploy (Push-to-Deploy)',
     autodeployDescription: 'Automatically trigger a new build on push to the main branch.',
     autodeploySuccess: 'Autodeploy settings updated.',
     autodeployError: 'Error updating autodeploy settings.',
     publicProject: 'Public Project',
     publicProjectDescription: 'Allow anyone on the internet to view this project.',
+
+    // --- NEW KEYS FOR ENV MANAGER ---
+    envListMode: 'List',
+    envRawMode: 'Editor (.env)',
+    uploadEnv: 'Upload .env',
+    saveChanges: 'Save Changes',
+    copy: 'Copy',
     // ---------------------------------
 
     warnings: {

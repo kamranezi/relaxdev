@@ -1,12 +1,10 @@
 'use client';
 
-// ... импорты остаются прежними ...
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/components/AuthProvider';
 import { Project } from '@/types';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { 
   CheckCircle2, 
   Loader2, 
@@ -15,18 +13,14 @@ import {
   Trash2, 
   RefreshCw, 
   ArrowLeft,
-  Plus,
-  X,
   AlertCircle,
-  Copy,
-  Check
 } from 'lucide-react';
 import { getTranslation } from '@/lib/i18n';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings } from '@/components/Settings';
 import { useLanguage } from '@/components/LanguageContext';
+import { EnvVarsManager } from '@/components/EnvVarsManager'; // ⭐ Импорт нового компонента
 
-// ... GithubIcon ...
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -55,15 +49,11 @@ export default function ProjectDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRedeploying, setIsRedeploying] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [newEnvKey, setNewEnvKey] = useState('');
-  const [newEnvValue, setNewEnvValue] = useState('');
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Мы удалили состояния newEnvKey, newEnvValue, isSaving, copiedKey — они теперь внутри компонента
 
   const t = getTranslation(language);
   const projectId = params.id as string;
 
-  // ... fetchProject без изменений ...
   const fetchProject = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -93,7 +83,6 @@ export default function ProjectDetailPage() {
     }
   }, [projectId, fetchProject]);
 
-  // ... handleRedeploy ...
   const handleRedeploy = async () => {
     if (!project || !user) return;
     setIsRedeploying(true);
@@ -115,7 +104,6 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // ... handleDelete (ИСПРАВЛЕН ALERT) ...
   const handleDelete = async () => {
     if (!user || !confirm(t.deleteConfirmation)) {
       return;
@@ -137,70 +125,6 @@ export default function ProjectDetailPage() {
       alert(t.deleteError);
     } finally {
       setIsDeleting(false);
-    }
-  };
-
-  // ... handleAddEnvVar / handleRemoveEnvVar (ИСПРАВЛЕНЫ ALERT) ...
-  const handleAddEnvVar = async () => {
-    if (!project || !newEnvKey.trim() || !newEnvValue.trim() || !user) return;
-    setIsSaving(true);
-    try {
-      const idToken = await user.getIdToken();
-      const updatedEnvVars = [...(project.envVars || []), { key: newEnvKey.trim(), value: newEnvValue.trim() }];
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`
-        },
-        body: JSON.stringify({ envVars: updatedEnvVars }),
-      });
-      if (res.ok) {
-        await fetchProject();
-        setNewEnvKey('');
-        setNewEnvValue('');
-      }
-    } catch (error) {
-      console.error('Ошибка сохранения переменной:', error);
-      alert(t.saveVarError);
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleRemoveEnvVar = async (index: number) => {
-    if (!project || !user) return;
-    setIsSaving(true);
-    try {
-      const idToken = await user.getIdToken();
-      const updatedEnvVars = (project.envVars || []).filter((_, i) => i !== index);
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'PUT',
-        headers: { 
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}` 
-        },
-        body: JSON.stringify({ envVars: updatedEnvVars }),
-      });
-      if (res.ok) {
-        await fetchProject();
-      }
-    } catch (error) {
-      console.error('Ошибка удаления переменной:', error);
-      alert(t.deleteVarError);
-    } finally {
-      setIsSaving(false);
-    }
-  };  
-
-  // ... copyToClipboard ...
-  const copyToClipboard = async (text: string, key: string) => {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedKey(key);
-      setTimeout(() => setCopiedKey(null), 2000);
-    } catch (error) {
-      console.error('Ошибка копирования:', error);
     }
   };
 
@@ -255,6 +179,8 @@ export default function ProjectDetailPage() {
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
   const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
+  
+  // Кнопки управления и табы показываем только если есть доступ к переменным (Владелец/Админ)
   const canManage = !!project.envVars;
 
   return (
@@ -279,7 +205,6 @@ export default function ProjectDetailPage() {
                   {statusConfig.text}
                 </span>
               </div>
-              {/* ... Ссылки на репо и домен ... */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-400">
                 <a
                   href={project.repoUrl}
@@ -304,7 +229,6 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* ИСПРАВЛЕНИЕ: Кнопки управления с правильными переводами */}
             {canManage && (
                 <div className="flex gap-2 w-full md:w-auto">
                 <Button
@@ -317,9 +241,7 @@ export default function ProjectDetailPage() {
                     ) : (
                     <>
                         <RefreshCw className="h-4 w-4 mr-2" />
-                        {/* Для десктопа - полный текст */}
                         <span className="hidden md:inline">{t.redeploy}</span>
-                        {/* Для мобильных - короткий текст из переводов */}
                         <span className="md:hidden">{t.buildShort || t.redeploy}</span>
                     </>
                     )}
@@ -335,9 +257,7 @@ export default function ProjectDetailPage() {
                     ) : (
                     <>
                         <Trash2 className="h-4 w-4 mr-2" />
-                         {/* Для десктопа - полный текст */}
                         <span className="hidden md:inline">{t.delete}</span>
-                         {/* Для мобильных - короткий текст из переводов */}
                         <span className="md:hidden">{t.deleteShort || t.delete}</span>
                     </>
                     )}
@@ -347,7 +267,6 @@ export default function ProjectDetailPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-             {/* ... Контент табов остается прежним, только убедитесь что используется 't' ... */}
             <div className="w-full overflow-x-auto pb-2 -mb-2 sm:mb-0 sm:pb-0 scrollbar-none">
                 <TabsList className="bg-black/50 w-full sm:w-auto flex justify-start min-w-[320px]">
                   <TabsTrigger className="flex-1" value="overview">{t.overview}</TabsTrigger>
@@ -356,11 +275,9 @@ export default function ProjectDetailPage() {
                   {canManage && <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>}
                 </TabsList>
             </div>
-            
-            {/* ... Rest of the component (TabsContent) logic stays same, it was already using 't' ... */}
+
             <TabsContent value="overview" className="mt-6">
-                {/* ... Сокращенный код для примера, логика внутри TabsContent была правильной ... */}
-                 <div className="space-y-4">
+              <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="bg-black/30 rounded-lg p-4">
                     <div className="text-sm text-gray-400 mb-1">{t.owner}</div>
@@ -383,8 +300,7 @@ export default function ProjectDetailPage() {
                     <div className="text-white font-mono text-sm truncate">{project.domain}</div>
                   </div>
                 </div>
-                
-                 {/* ... Блок ошибок ... */}
+
                 {(project.buildErrors && project.buildErrors.length > 0) || 
                  (project.missingEnvVars && project.missingEnvVars.length > 0) ? (
                   <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4">
@@ -421,89 +337,19 @@ export default function ProjectDetailPage() {
                 ) : null}
               </div>
             </TabsContent>
-            
+
             {canManage && (
                 <>
-                 <TabsContent value="env" className="mt-6">
-                    {/* ... Тут также просто используем 't', код внутри был верен ... */}
-                     <div className="space-y-4">
-                        <div className="bg-black/30 rounded-lg p-4">
-                        <div className="text-sm font-medium text-gray-300 mb-3">
-                            {t.addEnvVar}
-                        </div>
-                        <div className="flex flex-col sm:flex-row gap-2">
-                            <Input
-                            value={newEnvKey}
-                            onChange={(e) => setNewEnvKey(e.target.value)}
-                            placeholder="KEY"
-                            className="bg-black/50 border-gray-700"
-                            />
-                            <Input
-                            value={newEnvValue}
-                            onChange={(e) => setNewEnvValue(e.target.value)}
-                            placeholder="VALUE"
-                            className="bg-black/50 border-gray-700"
-                            type="password"
-                            />
-                            <Button
-                            onClick={handleAddEnvVar}
-                            disabled={!newEnvKey.trim() || !newEnvValue.trim() || isSaving}
-                            className="bg-white text-black hover:bg-gray-200 flex-shrink-0"
-                            >
-                            {isSaving ? (
-                                <Loader2 className="h-4 w-4 animate-spin" />
-                            ) : (
-                                <>
-                                <Plus className="h-4 w-4 md:mr-2" />
-                                <span className="hidden md:inline">{t.add}</span>
-                                </>
-                            )}
-                            </Button>
-                        </div>
-                        </div>
-                        {/* ... Список переменных ... */}
-                        <div className="space-y-2">
-                        {(project.envVars || []).length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                            {t.noEnvVars}
-                            </div>
-                        ) : (
-                            (project.envVars || []).map((envVar, index) => (
-                            <div key={index} className="bg-black/30 rounded-lg p-3 sm:p-4 flex items-center justify-between">
-                                <div className="flex-1 overflow-hidden">
-                                <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-green-400 font-mono text-xs">••••••••</span>
-                                    <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => copyToClipboard(envVar.value, `${envVar.key}-value`)}
-                                    className="h-6 w-6 p-0"
-                                    >
-                                    {copiedKey === `${envVar.key}-value` ? (
-                                        <Check className="h-3 w-3 text-green-400" />
-                                    ) : (
-                                        <Copy className="h-3 w-3 text-gray-400" />
-                                    )}
-                                    </Button>
-                                </div>
-                                </div>
-                                <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveEnvVar(index)}
-                                disabled={isSaving}
-                                className="text-red-400 hover:text-red-300 ml-2"
-                                >
-                                <X className="h-4 w-4" />
-                                </Button>
-                            </div>
-                            ))
-                        )}
-                        </div>
-                    </div>
-                 </TabsContent>
-                 <TabsContent value="logs" className="mt-6">
+                    <TabsContent value="env" className="mt-6">
+                        {/* ⭐ ИСПОЛЬЗУЕМ НОВЫЙ КОМПОНЕНТ */}
+                        <EnvVarsManager 
+                            projectId={projectId} 
+                            initialEnvVars={project.envVars || []} 
+                            onUpdate={fetchProject} 
+                        />
+                    </TabsContent>
+
+                    <TabsContent value="logs" className="mt-6">
                     <div className="bg-black/30 rounded-lg p-4 overflow-x-auto">
                         <pre className="font-mono text-xs text-gray-300 whitespace-pre">
                         {project.deploymentLogs || t.noLogs}
@@ -520,7 +366,6 @@ export default function ProjectDetailPage() {
                     </TabsContent>
                 </>
             )}
-
           </Tabs>
         </div>
       </main>
