@@ -39,7 +39,7 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
   const [isRedeploying, setIsRedeploying] = useState(false);
 
   const handleRedeploy = async (e: React.MouseEvent) => {
-    e.stopPropagation(); // Остановить всплытие, чтобы не сработал клик по карточке
+    e.stopPropagation(); // Остановить всплытие
     if (!user || isRedeploying) return;
 
     setIsRedeploying(true);
@@ -114,7 +114,8 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
 
   const statusConfig = getStatusConfig();
   const StatusIcon = statusConfig.icon;
-  const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
+  // Если domain есть, формируем ссылку, иначе null
+  const domainUrl = project.domain ? (project.domain.startsWith('http') ? project.domain : `https://${project.domain}`) : null;
   const hasWarnings = (project.buildErrors && project.buildErrors.length > 0) || 
                      (project.missingEnvVars && project.missingEnvVars.length > 0);
 
@@ -142,15 +143,21 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
         </div>
         
         <div className="mb-4">
-            <a 
-                href={domainUrl} 
-                target="_blank" 
-                rel="noopener noreferrer" 
-                onClick={(e) => e.stopPropagation()}
-                className="font-mono text-sm text-cyan-400 hover:underline truncate block"
-            >
-                {project.domain}
-            </a>
+            {domainUrl ? (
+                <a 
+                    href={domainUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    onClick={(e) => e.stopPropagation()}
+                    className="font-mono text-sm text-cyan-400 hover:underline truncate block"
+                >
+                    {project.domain}
+                </a>
+            ) : (
+                <span className="font-mono text-sm text-gray-600 block italic">
+                    {language === 'ru' ? 'Здесь будет ссылка на ваш сайт...' : 'Your website link will appear here...'}
+                </span>
+            )}
         </div>
         
         <div className="mb-4 text-xs text-gray-400 flex items-center gap-2">

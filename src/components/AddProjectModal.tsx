@@ -13,7 +13,15 @@ import { Label } from '@/components/ui/label';
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onDeploy: (gitUrl: string, projectName: string, gitToken: string | undefined, envVars: ProjectEnvVar[] | undefined, isPublic: boolean) => Promise<void>;
+  // Добавили autodeploy в сигнатуру функции
+  onDeploy: (
+    gitUrl: string, 
+    projectName: string, 
+    gitToken: string | undefined, 
+    envVars: ProjectEnvVar[] | undefined, 
+    isPublic: boolean, 
+    autodeploy: boolean
+  ) => Promise<void>;
   language: 'ru' | 'en';
   user: User | null;
 }
@@ -37,7 +45,10 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   const [envVars, setEnvVars] = useState<ProjectEnvVar[]>([]);
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvValue, setNewEnvValue] = useState('');
+  
+  // Новые состояния
   const [isPublic, setIsPublic] = useState(false);
+  const [autodeploy, setAutodeploy] = useState(true); // По умолчанию включен
 
   const loadRepos = useCallback(async () => {
     if (!user) return;
@@ -73,6 +84,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
         setNewEnvKey('');
         setNewEnvValue('');
         setIsPublic(false);
+        setAutodeploy(true); // Сбрасываем в true при открытии
     }
   }, [isOpen, user, loadRepos]);
 
@@ -104,7 +116,15 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
     if (!gitUrl || !projectName) return;
     setIsLoading(true);
     try {
-      await onDeploy(gitUrl, projectName, '', envVars.length > 0 ? envVars : undefined, isPublic);
+      // Передаем все параметры, включая autodeploy
+      await onDeploy(
+        gitUrl, 
+        projectName, 
+        '', 
+        envVars.length > 0 ? envVars : undefined, 
+        isPublic, 
+        autodeploy
+      );
       onClose();
     } catch (error) {
       console.error("Ошибка деплоя:", error);
@@ -163,7 +183,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
                                 className="bg-black/50 border-gray-700"
-                                
                             />
                             
                             <div className="h-[200px] overflow-y-auto border border-gray-800 rounded-md p-2 space-y-1 custom-scrollbar">
@@ -287,9 +306,22 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                 )}
               </div>
             </div>
-             <div className="flex items-center space-x-2 pt-4 border-t border-gray-800">
-                <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
-                <Label htmlFor="public-switch">Сделать проект публичным</Label>
+            
+            {/* Настройки проекта: Публичность и Автодеплой */}
+             <div className="space-y-4 pt-4 border-t border-gray-800">
+                 <div className="flex items-center justify-between space-x-2">
+                    <Label htmlFor="public-switch" className="cursor-pointer text-sm font-medium text-gray-300">
+                        {language === 'ru' ? 'Сделать проект публичным' : 'Public Project'}
+                    </Label>
+                    <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
+                 </div>
+                 
+                 <div className="flex items-center justify-between space-x-2">
+                    <Label htmlFor="autodeploy-switch" className="cursor-pointer text-sm font-medium text-gray-300">
+                        {language === 'ru' ? 'Включить автодеплой' : 'Enable Autodeploy'}
+                    </Label>
+                    <Switch id="autodeploy-switch" checked={autodeploy} onCheckedChange={setAutodeploy} />
+                 </div>
              </div>
 
             <Button 
