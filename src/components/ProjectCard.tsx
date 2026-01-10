@@ -5,7 +5,6 @@ import { Language, getTranslation } from '@/lib/i18n';
 import { CheckCircle2, Loader2, XCircle, AlertCircle, RefreshCw, Globe, User as UserIcon } from 'lucide-react';
 import { useAuth } from '@/components/AuthProvider';
 import { useState } from 'react';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
 interface ProjectCardProps {
@@ -34,16 +33,27 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
+// Функция безопасного форматирования даты (чтобы не было Invalid Date)
+const safeFormatDate = (dateString: string | undefined | null, locale: string) => {
+    if (!dateString) return '—';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return '—';
+    // Для карточки делаем дату короче (только день и месяц + время), или полную по желанию
+    return date.toLocaleString(locale, { 
+        day: 'numeric', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit' 
+    });
+};
+
 export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogin }: ProjectCardProps) {
   const t = getTranslation(language);
   const { user } = useAuth();
   const router = useRouter();
   const [isRedeploying, setIsRedeploying] = useState(false);
-  const [imageError, setImageError] = useState(false);
 
-  // ⭐ Используем флаг canEdit (по умолчанию true для старых версий API, но лучше false)
-  // Если canEdit undefined (старый API), считаем false для безопасности, если это не владелец
-  // Но так как мы обновили API, поле должно быть.
+  // Используем canEdit для проверки прав
   const canEdit = project.canEdit;
 
   const handleRedeploy = async (e: React.MouseEvent) => {
@@ -127,7 +137,6 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
                      (project.missingEnvVars && project.missingEnvVars.length > 0);
 
   const handleCardClick = () => {
-    // ⭐ Переход только если есть права
     if (canEdit) {
       router.push(`/projects/${project.id}`);
     }
@@ -139,7 +148,6 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
         ${canEdit ? 'hover:shadow-cyan-500/20 hover:border-gray-800' : 'opacity-90'}
       `}
     >
-      {/* ⭐ Условный cursor-pointer */}
       <div 
         onClick={handleCardClick} 
         className={`${canEdit ? 'cursor-pointer' : 'cursor-default'} flex-grow`}
@@ -168,7 +176,6 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
                     href={domainUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
-                    // ⭐ stopPropagation важен, чтобы клик по ссылке работал даже если клик по карточке отключен
                     onClick={(e) => e.stopPropagation()}
                     className="font-mono text-sm text-cyan-400 hover:underline truncate block"
                 >
@@ -198,7 +205,6 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
       <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
         <div 
           className={`flex items-center space-x-2 ${statusConfig.isError && canEdit ? 'cursor-pointer' : ''}`}
-          // ⭐ Редеплой по клику на иконку только если есть права
           onClick={(statusConfig.isError && canEdit) ? handleRedeploy : undefined}
         >
            <div className={`flex items-center gap-1.5 ${statusConfig.color}`}>
@@ -211,24 +217,16 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
           </div>
         </div>
         <div className="flex items-center gap-3">
-            {ownerLogin && !imageError ? (
-              <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-300 transition-colors">
-                <Image 
-                  src={`https://github.com/${ownerLogin}.png`} 
-                  alt={ownerLogin} 
-                  width={20} 
-                  height={20} 
-                  className="rounded-full" 
-                  onError={() => setImageError(true)}
-                  unoptimized
-                />
-              </a>
-            ) : ownerLogin ? (
-                <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-400">
+             {/* Мы полностью убрали Image, чтобы не было ошибок консоли. Только иконка. */}
+             {ownerLogin && (
+                <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-400" title={ownerLogin}>
                    <UserIcon className="h-5 w-5" />
                 </a>
-             ) : null}
-          <p className="text-sm text-gray-500">{project.lastDeployed}</p>
+             )}
+             {/* Исправленная дата */}
+             <p className="text-sm text-gray-500">
+                {safeFormatDate(project.lastDeployed, language === 'ru' ? 'ru-RU' : 'en-US')}
+             </p>
         </div>
       </div>
     </div>
