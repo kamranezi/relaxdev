@@ -102,10 +102,10 @@ export async function POST(request: NextRequest) {
     if (error.response) {
         console.error('GitHub Error Data:', error.response.data);
     }
-    const message = error instanceof Error ? error.message : 'Failed to trigger build';
+    const message = error.response?.data?.message || error.message || 'Failed to trigger build';
     return NextResponse.json(
       { error: message }, 
-      { status: 500 }
+      { status: error.status || 500 }
     );
   }
 }

@@ -11,12 +11,13 @@
       }
     },
     "projects": {
-      ".read": "auth != null",
-       ".write": "root.child('admins').child(auth.uid).val() === true",
-       "$projectId": {
-        ".read": "data.child('isPublic').val() === true || (auth != null && (root.child('admins').child(auth.uid).val() === true || data.child('owner').val() === auth.token.email))",
-         ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (newData.child('owner').val() === auth.token.email && data.child('owner').val() === auth.token.email))"
-       }
+      ".indexOn": ["owner", "isPublic"],
+      ".read": "auth != null && ((query.orderByChild === 'owner' && query.equalTo === auth.token.email) || (query.orderByChild === 'isPublic' && query.equalTo === true) || root.child('admins').child(auth.uid).val() === true)",
+      ".write": "root.child('admins').child(auth.uid).val() === true",
+      "$projectId": {
+        ".read": "data.child('isPublic').val() === true || (auth != null && (data.child('owner').val() === auth.token.email || root.child('admins').child(auth.uid).val() === true))",
+        ".write": "auth != null && (root.child('admins').child(auth.uid).val() === true || (newData.child('owner').val() === auth.token.email && data.child('owner').val() === auth.token.email))"
+      }
     }
   }
 }

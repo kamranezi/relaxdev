@@ -87,6 +87,10 @@ export async function POST(
     if (error.response) {
         console.error('GitHub Error Data:', error.response.data);
     }
-    return NextResponse.json({ error: error.message || 'Failed' }, { status: 500 });
+    const message = error.response?.data?.message || error.message || 'Failed to trigger build';
+    return NextResponse.json(
+      { error: message }, 
+      { status: error.status || 500 }
+    );
   }
 }
