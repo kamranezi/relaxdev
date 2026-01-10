@@ -12,7 +12,7 @@ interface ProjectCardProps {
   language: Language;
   onRedeploy: () => Promise<void>;
   isPublic?: boolean;
-  ownerLogin?: string;
+  ownerLogin?: string | null; 
 }
 
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (

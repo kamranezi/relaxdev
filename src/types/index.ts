@@ -10,18 +10,18 @@ export interface Project {
   name: string;
   status: ProjectStatus;
   repoUrl: string;
-  lastDeployed: string;
+  lastDeployed: string; // Теперь обязательно (мы его инициализируем при создании)
   targetImage: string; // Yandex Container Registry
   domain: string;
   owner: string; // email пользователя-владельца
-  ownerLogin?: string; // login пользователя (для GitHub)
+  ownerLogin?: string | null; // ⭐ ИСПРАВЛЕНО: добавили | null, так как база может вернуть null
   isPublic: boolean;
-  autodeploy?: boolean; // <-- Добавлено поле
-  envVars?: ProjectEnvVar[]; // переменные окружения
-  buildErrors?: string[]; // ошибки сборки
-  missingEnvVars?: string[]; // отсутствующие переменные окружения
-  deploymentLogs?: string; // логи деплоя
-  gitToken?: string; // токен для доступа к приватному репозиторию (опционально)
+  autodeploy?: boolean; // Опционально, так как в старых проектах может не быть
+  envVars?: ProjectEnvVar[]; 
+  buildErrors?: string[]; 
+  missingEnvVars?: string[]; 
+  deploymentLogs?: string; 
+  gitToken?: string; 
   createdAt: string;
   updatedAt: string;
 }

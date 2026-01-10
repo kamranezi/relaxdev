@@ -26,13 +26,14 @@ export async function POST(request: NextRequest) {
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const userGithubToken = userData?.githubAccessToken;
-    const ownerLogin = userData?.login;
+    
+    // ⭐ ИСПРАВЛЕНИЕ: Более надежное получение логина
+    const ownerLogin = userData?.login || userData?.githubUsername || ownerEmail.split('@')[0];
 
     if (!userGithubToken) {
         return NextResponse.json({ error: 'User GitHub token not found' }, { status: 403 });
     }
 
-    // ВАЖНО: Этот токен должен быть в переменных окружения ОБЛАКА
     const builderGithubToken = process.env.GITHUB_ACCESS_TOKEN;
     if (!builderGithubToken) {
         console.error('CRITICAL: GITHUB_ACCESS_TOKEN is missing on server');
@@ -52,23 +53,26 @@ export async function POST(request: NextRequest) {
     
     const projectRef = db.ref(`projects/${safeName}`);
     
+    const now = new Date().toISOString();
+
     const projectData = {
       id: safeName,
       name: projectName,
       status: 'Сборка',
       repoUrl: gitUrl,
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
-      domain: '', // Ссылка появится после сборки
+      domain: '',
       owner: ownerEmail,
-      ownerLogin: ownerLogin,
+      ownerLogin: ownerLogin || null, // ⭐ ИСПРАВЛЕНИЕ: null вместо undefined
       isPublic: isPublic || false,
       autodeploy: autodeploy !== false,
       envVars: envVars || [],
       buildErrors: [],
       missingEnvVars: [],
       deploymentLogs: '',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      createdAt: now,
+      updatedAt: now,
+      lastDeployed: now, // ⭐ ИСПРАВЛЕНИЕ: Добавлена дата
     };
 
     await projectRef.set(projectData);
@@ -77,7 +81,6 @@ export async function POST(request: NextRequest) {
       ? JSON.stringify(envVars) 
       : '';
     
-    // Запускаем workflow в билдере
     await octokit.actions.createWorkflowDispatch({
       owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
       repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
@@ -98,7 +101,6 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('GitHub API Error:', error);
-    // Логируем подробности ошибки от GitHub
     if (error.response) {
         console.error('GitHub Error Data:', error.response.data);
     }
