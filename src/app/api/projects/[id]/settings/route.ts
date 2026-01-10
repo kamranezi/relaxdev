@@ -3,7 +3,7 @@ import { db, adminAuth } from '@/lib/firebase-admin';
 
 export async function POST(
   request: NextRequest,
-  context: { params: Promise<{ id: string }> } // Promise важен для Next.js 15
+  context: { params: Promise<{ id: string }> }
 ) {
   try {
     if (!db || !adminAuth) {
@@ -20,12 +20,17 @@ export async function POST(
 
     const token = authHeader.split('Bearer ')[1];
     const decodedToken = await adminAuth.verifyIdToken(token);
-    const userEmail = decodedToken.email;
+    const userEmail = decodedToken.email?.toLowerCase();
 
-    // Получаем тело запроса
+    // 1. ⭐ СНАЧАЛА читаем тело запроса
     const body = await request.json();
-    
-    // Проверяем проект
+
+    // 2. Проверяем права Админа (в users/{uid})
+    const userRef = db.ref(`users/${decodedToken.uid}`);
+    const userSnapshot = await userRef.once('value');
+    const isAdmin = userSnapshot.val()?.isAdmin === true;
+
+    // 3. Проверяем проект
     const projectRef = db.ref(`projects/${projectId}`);
     const snapshot = await projectRef.once('value');
     const project = snapshot.val();
@@ -34,26 +39,22 @@ export async function POST(
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Проверяем права
-    const adminRef = db.ref(`admins/${decodedToken.uid}`);
-    const adminSnapshot = await adminRef.once('value');
-    const isAdmin = adminSnapshot.val() === true;
+    const projectOwner = project.owner ? project.owner.toLowerCase() : '';
 
-    if (project.owner !== userEmail && !isAdmin) {
+    // 4. Проверяем доступ (Владелец или Админ)
+    if (projectOwner !== userEmail && !isAdmin) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Формируем обновления
+    // 5. Формируем обновления
     const updates: any = {
       updatedAt: new Date().toISOString(),
     };
 
-    // Если прислали autodeploy - обновляем его
     if (typeof body.autodeploy === 'boolean') {
         updates.autodeploy = body.autodeploy;
     }
     
-    // Если прислали isPublic - обновляем его
     if (typeof body.isPublic === 'boolean') {
         updates.isPublic = body.isPublic;
     }

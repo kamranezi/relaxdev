@@ -27,9 +27,11 @@ export async function GET(req: Request) {
     if (idToken) {
         try {
             const decodedToken = await adminAuth.verifyIdToken(idToken);
-            currentUserEmail = decodedToken.email || null;
-            const adminRef = db.ref(`admins/${decodedToken.uid}`);
-            isAdmin = (await adminRef.once('value')).val() === true;
+            currentUserEmail = decodedToken.email ? decodedToken.email.toLowerCase() : null;
+            
+            const userRef = db.ref(`users/${decodedToken.uid}`);
+            const userSnapshot = await userRef.once('value');
+            isAdmin = userSnapshot.val()?.isAdmin === true;
         } catch (e) {
             console.warn("Auth warning:", e);
         }
@@ -58,8 +60,9 @@ export async function GET(req: Request) {
       .map(([key, value]) => ({ ...(value as object), id: key } as Project))
       .filter((project) => {
         if (isAdmin) return true;
+        const projectOwner = project.owner ? project.owner.toLowerCase() : '';
         if (currentUserEmail) {
-          return project.owner === currentUserEmail || project.isPublic === true;
+          return projectOwner === currentUserEmail || project.isPublic === true;
         }
         return project.isPublic === true;
       })
@@ -72,10 +75,26 @@ export async function GET(req: Request) {
           else if (container.status === 'ERROR' || container.status === 'STOPPED') status = 'Ошибка';
         }
 
+        const projectOwner = project.owner ? project.owner.toLowerCase() : '';
+        const isOwner = currentUserEmail && projectOwner === currentUserEmail;
+        // ⭐ Определяем права
+        const canEdit = !!(isAdmin || isOwner);
+
+        // ⭐ Клонируем объект, чтобы безопасно удалить поля
+        const safeProject = { ...project };
+
+        // ⭐ Если нет прав, удаляем секреты
+        if (!canEdit) {
+            delete safeProject.envVars;
+            delete safeProject.gitToken;
+            delete safeProject.deploymentLogs;
+        }
+
         return {
-          ...project,
+          ...safeProject,
           status,
           domain: container?.url || project.domain || '',
+          canEdit, // Передаем флаг на фронтенд
         };
       })
       .sort((a, b) => new Date(b.lastDeployed || 0).getTime() - new Date(a.lastDeployed || 0).getTime());

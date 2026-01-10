@@ -6,7 +6,7 @@ import { CheckCircle2, Loader2, XCircle, AlertCircle, RefreshCw, Globe, User as 
 import { useAuth } from '@/components/AuthProvider';
 import { useState } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation'; // Добавили useRouter
+import { useRouter } from 'next/navigation';
 
 interface ProjectCardProps {
   project: Project;
@@ -16,7 +16,6 @@ interface ProjectCardProps {
   ownerLogin?: string | null; 
 }
 
-// ... GithubIcon оставляем как есть ...
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <svg 
         xmlns="http://www.w3.org/2000/svg" 
@@ -38,9 +37,14 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
 export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogin }: ProjectCardProps) {
   const t = getTranslation(language);
   const { user } = useAuth();
-  const router = useRouter(); // Инициализируем роутер
+  const router = useRouter();
   const [isRedeploying, setIsRedeploying] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  // ⭐ Используем флаг canEdit (по умолчанию true для старых версий API, но лучше false)
+  // Если canEdit undefined (старый API), считаем false для безопасности, если это не владелец
+  // Но так как мы обновили API, поле должно быть.
+  const canEdit = project.canEdit;
 
   const handleRedeploy = async (e: React.MouseEvent) => {
     e.stopPropagation(); 
@@ -122,18 +126,26 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
   const hasWarnings = (project.buildErrors && project.buildErrors.length > 0) || 
                      (project.missingEnvVars && project.missingEnvVars.length > 0);
 
-  // ИСПРАВЛЕНИЕ ЗДЕСЬ: Используем router.push вместо window.location.href
   const handleCardClick = () => {
-    router.push(`/projects/${project.id}`);
+    // ⭐ Переход только если есть права
+    if (canEdit) {
+      router.push(`/projects/${project.id}`);
+    }
   };
 
   return (
     <div 
-      className="bg-[#1A1A1A] rounded-lg shadow-lg p-5 hover:shadow-cyan-500/20 hover:border-gray-800 transition-all duration-300 group flex flex-col justify-between h-full border border-transparent"
+      className={`bg-[#1A1A1A] rounded-lg shadow-lg p-5 transition-all duration-300 group flex flex-col justify-between h-full border border-transparent 
+        ${canEdit ? 'hover:shadow-cyan-500/20 hover:border-gray-800' : 'opacity-90'}
+      `}
     >
-      <div onClick={handleCardClick} className="cursor-pointer flex-grow">
+      {/* ⭐ Условный cursor-pointer */}
+      <div 
+        onClick={handleCardClick} 
+        className={`${canEdit ? 'cursor-pointer' : 'cursor-default'} flex-grow`}
+      >
         <div className="flex items-start justify-between mb-3">
-          <h3 className="text-lg font-bold text-white group-hover:text-gray-200 transition-colors break-all pr-2">
+          <h3 className={`text-lg font-bold text-white break-all pr-2 ${canEdit ? 'group-hover:text-gray-200' : ''} transition-colors`}>
             {project.name}
           </h3>
           <div className="flex items-center gap-2 flex-shrink-0">
@@ -142,7 +154,7 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
                     <Globe className="h-3 w-3" />
                 </div>
             )}
-            {hasWarnings && (
+            {hasWarnings && canEdit && (
               <span title={t.warnings.title}>
                 <AlertCircle className="h-5 w-5 text-yellow-500" />
               </span>
@@ -156,6 +168,7 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
                     href={domainUrl} 
                     target="_blank" 
                     rel="noopener noreferrer" 
+                    // ⭐ stopPropagation важен, чтобы клик по ссылке работал даже если клик по карточке отключен
                     onClick={(e) => e.stopPropagation()}
                     className="font-mono text-sm text-cyan-400 hover:underline truncate block"
                 >
@@ -184,8 +197,9 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
       
       <div className="flex items-center justify-between mt-auto pt-4 border-t border-gray-800/50">
         <div 
-          className={`flex items-center space-x-2 ${statusConfig.isError ? 'cursor-pointer' : ''}`}
-          onClick={statusConfig.isError ? handleRedeploy : undefined}
+          className={`flex items-center space-x-2 ${statusConfig.isError && canEdit ? 'cursor-pointer' : ''}`}
+          // ⭐ Редеплой по клику на иконку только если есть права
+          onClick={(statusConfig.isError && canEdit) ? handleRedeploy : undefined}
         >
            <div className={`flex items-center gap-1.5 ${statusConfig.color}`}>
             <StatusIcon 

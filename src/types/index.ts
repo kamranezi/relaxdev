@@ -24,4 +24,5 @@ export interface Project {
   gitToken?: string;
   createdAt: string;
   updatedAt: string;
+  canEdit?: boolean;
 }
