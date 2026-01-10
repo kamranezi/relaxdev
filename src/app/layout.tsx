@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/AuthProvider";
+import { LanguageProvider } from "@/components/LanguageContext"; // Импорт контекста
+import { Header } from "@/components/Header"; // Импорт хедера
 import "./globals.css";
 
 const geistSans = Geist({
@@ -73,9 +75,17 @@ export default function RootLayout({
         <meta name="theme-color" content="#0A0A0A" />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-[#0A0A0A] text-gray-300`}
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <LanguageProvider>
+            {/* Хедер закреплен сверху для всех страниц */}
+            <Header />
+            <main className="flex-grow">
+                {children}
+            </main>
+          </LanguageProvider>
+        </AuthProvider>
       </body>
     </html>
   );

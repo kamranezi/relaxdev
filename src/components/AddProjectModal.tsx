@@ -1,3 +1,4 @@
+// src/components/AddProjectModal.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -148,7 +149,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px] max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px] max-h-[90vh] overflow-y-auto custom-scrollbar w-[95vw] sm:w-full">
         <DialogHeader>
           <DialogTitle>{language === 'ru' ? 'Новый проект' : 'New Project'}</DialogTitle>
         </DialogHeader>
@@ -162,15 +163,16 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                 <div className="flex flex-col gap-4">
                     {selectedRepo ? (
                         <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between animate-in fade-in zoom-in-95 duration-200">
-                            <div className="flex items-center gap-3 overflow-hidden">
-                                <div className="bg-blue-500/20 p-2 rounded-full">
+                            {/* min-w-0 здесь критически важен для работы truncate внутри flex-контейнера */}
+                            <div className="flex items-center gap-3 overflow-hidden min-w-0 flex-1">
+                                <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
                                     <Github className="w-4 h-4 text-blue-400" />
                                 </div>
-                                <div className="flex flex-col min-w-0">
-                                    <span className="text-sm font-medium text-blue-100 truncate">
+                                <div className="flex flex-col min-w-0 overflow-hidden">
+                                    <span className="text-sm font-medium text-blue-100 truncate block">
                                         {selectedRepo.full_name}
                                     </span>
-                                    <span className="text-xs text-blue-300/70 truncate">
+                                    <span className="text-xs text-blue-300/70 truncate block">
                                         {selectedRepo.url}
                                     </span>
                                 </div>
@@ -179,7 +181,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                 variant="ghost" 
                                 size="sm" 
                                 onClick={handleResetSelection}
-                                className="text-gray-400 hover:text-white hover:bg-white/10 h-8 w-8 p-0 rounded-full"
+                                className="text-gray-400 hover:text-white hover:bg-white/10 h-8 w-8 p-0 rounded-full flex-shrink-0 ml-2"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
@@ -205,11 +207,11 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                             onClick={() => handleRepoSelect(repo)}
                                             className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group"
                                         >
-                                            <div className="flex items-center gap-2 overflow-hidden">
+                                            <div className="flex items-center gap-2 overflow-hidden min-w-0">
                                                 {repo.private ? <Lock className="w-3 h-3 text-yellow-500 shrink-0" /> : <Github className="w-3 h-3 text-gray-400 shrink-0" />}
-                                                <span className="truncate text-gray-300 group-hover:text-white">{repo.full_name}</span>
+                                                <span className="truncate text-gray-300 group-hover:text-white block">{repo.full_name}</span>
                                             </div>
-                                            <Button variant="ghost" size="sm" className="h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-gray-400">
+                                            <Button variant="ghost" size="sm" className="h-6 text-xs opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 flex-shrink-0 ml-2">
                                                 Select
                                             </Button>
                                         </div>
@@ -294,17 +296,17 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                   <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-800 rounded-md p-2 custom-scrollbar">
                     {envVars.map((envVar, index) => (
                       <div key={index} className="flex items-center justify-between text-xs bg-gray-900/50 p-2 rounded">
-                        <span className="text-gray-300">
-                          <span className="font-mono text-blue-400">{envVar.key}</span>
-                          <span className="text-gray-500 mx-2">=</span>
-                          <span className="text-green-400">••••••••</span>
+                        <span className="text-gray-300 min-w-0 flex-1 flex items-center overflow-hidden">
+                          <span className="font-mono text-blue-400 truncate max-w-[40%]">{envVar.key}</span>
+                          <span className="text-gray-500 mx-2 flex-shrink-0">=</span>
+                          <span className="text-green-400 truncate max-w-[40%]">••••••••</span>
                         </span>
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
                           onClick={() => handleRemoveEnvVar(index)}
-                          className="h-5 w-5 p-0 text-red-400 hover:text-red-300"
+                          className="h-5 w-5 p-0 text-red-400 hover:text-red-300 flex-shrink-0 ml-2"
                         >
                           <X className="w-3 h-3" />
                         </Button>

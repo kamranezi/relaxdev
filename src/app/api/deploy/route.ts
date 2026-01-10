@@ -6,11 +6,16 @@ export async function POST(request: NextRequest) {
   try {
     if (!db || !adminAuth) {
       console.error("Firebase Admin SDK not initialized");
-      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+      return NextResponse.json(
+          { error: "Internal Server Error: Firebase not initialized." },
+          { status: 500 }
+      );
     }
     
     const idToken = request.headers.get('Authorization')?.split('Bearer ')[1];
-    if (!idToken) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!idToken) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
 
     const decodedToken = await adminAuth.verifyIdToken(idToken);
     const uid = decodedToken.uid;
@@ -21,21 +26,33 @@ export async function POST(request: NextRequest) {
     const userSnapshot = await userRef.once('value');
     const userData = userSnapshot.val();
     const userGithubToken = userData?.githubAccessToken;
+    
+    // Получение логина
     const ownerLogin = userData?.login || userData?.githubUsername || ownerEmail.split('@')[0];
 
-    if (!userGithubToken) return NextResponse.json({ error: 'GitHub token not found' }, { status: 403 });
+    if (!userGithubToken) {
+        return NextResponse.json({ error: 'User GitHub token not found' }, { status: 403 });
+    }
 
     const builderGithubToken = process.env.GITHUB_ACCESS_TOKEN;
-    if (!builderGithubToken) return NextResponse.json({ error: 'Server config error' }, { status: 500 });
+    if (!builderGithubToken) {
+        console.error('CRITICAL: GITHUB_ACCESS_TOKEN is missing on server');
+        return NextResponse.json({ error: 'Server configuration error: Token missing' }, { status: 500 });
+    }
 
     const octokit = new Octokit({ auth: builderGithubToken });
+
     const body = await request.json();
     const { gitUrl, projectName, envVars, isPublic, autodeploy } = body;
 
-    if (!gitUrl || !projectName) return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    if (!gitUrl || !projectName) {
+      return NextResponse.json({ error: 'Missing fields' }, { status: 400 });
+    }
 
     const safeName = projectName.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+    
     const projectRef = db.ref(`projects/${safeName}`);
+    
     const now = new Date().toISOString();
 
     const projectData = {
@@ -49,7 +66,7 @@ export async function POST(request: NextRequest) {
       ownerLogin: ownerLogin || null,
       isPublic: isPublic || false,
       autodeploy: autodeploy !== false,
-      webhookId: null as number | null, // ⭐ Инициализируем null
+      webhookId: null as number | null, // Инициализируем поле
       envVars: envVars || [],
       buildErrors: [],
       missingEnvVars: [],
@@ -59,21 +76,34 @@ export async function POST(request: NextRequest) {
       lastDeployed: now,
     };
 
-    // Сначала сохраняем проект
     await projectRef.set(projectData);
 
-    // ⭐ ЛОГИКА ВЕБХУКА С СОХРАНЕНИЕМ ID ⭐
+    // ⭐ БЛОК ВЕБХУКА (ИСПРАВЛЕННЫЙ) ⭐
     if (autodeploy !== false) {
       try {
-        const repoUrlParts = gitUrl.replace('https://github.com/', '').split('/');
+        // 1. Убираем .git с конца и https://github.com/ с начала
+        const cleanRepoPath = gitUrl
+            .replace(/\.git$/, '') // Убираем .git в конце
+            .replace(/^https?:\/\/github\.com\//, ''); // Убираем домен
+
+        const repoUrlParts = cleanRepoPath.split('/');
+        
+        if (repoUrlParts.length < 2) {
+            throw new Error(`Invalid repo URL format: ${cleanRepoPath}`);
+        }
+
         const repoOwner = repoUrlParts[0];
         const repoName = repoUrlParts[1];
-        // Используйте переменную окружения или хардкод
-        const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://relaxdev.ru'}/api/webhook/github`;
         
+        console.log(`[API] Attempting to add webhook to ${repoOwner}/${repoName}`);
+
+        // Хардкод домена, как вы просили
+        const webhookUrl = `https://relaxdev.ru/api/webhook/github`;
+        
+        // Используем токен пользователя
         const userOctokit = new Octokit({ auth: userGithubToken });
 
-        // 1. Получаем список хуков
+        // Проверяем существующие хуки
         const hooks = await userOctokit.repos.listWebhooks({
             owner: repoOwner,
             repo: repoName,
@@ -83,7 +113,6 @@ export async function POST(request: NextRequest) {
         let webhookId: number | undefined;
 
         if (!existingHook) {
-            // 2. Создаем новый
             const newHook = await userOctokit.repos.createWebhook({
                 owner: repoOwner,
                 repo: repoName,
@@ -98,24 +127,30 @@ export async function POST(request: NextRequest) {
                 },
             });
             webhookId = newHook.data.id;
-            console.log(`[API] Webhook created: ID ${webhookId}`);
+            console.log(`[API] Webhook created successfully: ID ${webhookId}`);
         } else {
             webhookId = existingHook.id;
-            console.log(`[API] Webhook exists: ID ${webhookId}`);
+            console.log(`[API] Webhook already exists: ID ${webhookId}`);
         }
 
-        // 3. ⭐ Обновляем проект, сохраняя ID вебхука
+        // Обновляем проект с ID вебхука
         if (webhookId) {
             await projectRef.update({ webhookId: webhookId });
         }
 
-      } catch (err) {
-        console.error('Failed to manage webhook:', err);
+      } catch (err: any) {
+        // Логируем ошибку, но не роняем запрос
+        console.error('Failed to add webhook:', err.message);
+        if (err.response) {
+            console.error('GitHub Webhook Error Body:', err.response.data);
+        }
       }
     }
     // ⭐ КОНЕЦ БЛОКА ВЕБХУКА ⭐
 
-    const envVarsString = envVars && envVars.length > 0 ? JSON.stringify(envVars) : '';
+    const envVarsString = envVars && envVars.length > 0 
+      ? JSON.stringify(envVars) 
+      : '';
     
     await octokit.actions.createWorkflowDispatch({
       owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
@@ -131,15 +166,19 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    console.log(`[API] Triggered build for ${safeName}`);
+    console.log(`[API] Triggered build for ${safeName} by ${ownerEmail}`);
 
-    // Возвращаем обновленные данные (с webhookId, если успели обновить, но лучше вернуть то, что есть)
-    // Клиент все равно перезапросит список или статус позже
     return NextResponse.json(projectData);
 
   } catch (error: any) {
     console.error('GitHub API Error:', error);
+    if (error.response) {
+        console.error('GitHub Error Data:', error.response.data);
+    }
     const message = error.response?.data?.message || error.message || 'Failed to trigger build';
-    return NextResponse.json({ error: message }, { status: error.status || 500 });
+    return NextResponse.json(
+      { error: message }, 
+      { status: error.status || 500 }
+    );
   }
 }

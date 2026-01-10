@@ -20,10 +20,12 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { getTranslation, Language } from '@/lib/i18n';
+import { getTranslation } from '@/lib/i18n'; // Language type not needed here anymore
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings } from '@/components/Settings'; // Теперь этот файл существует
+import { Settings } from '@/components/Settings';
+import { useLanguage } from '@/components/LanguageContext'; // ⭐ Импорт хука
 
+// Иконка Github
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -46,7 +48,11 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const [language] = useState<Language>('ru');
+  
+  // ⭐ ИСПОЛЬЗУЕМ ГЛОБАЛЬНЫЙ ЯЗЫК
+  const { language } = useLanguage(); 
+  // const [language] = useState<Language>('ru'); // Удалено
+
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRedeploying, setIsRedeploying] = useState(false);
@@ -60,13 +66,17 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
 
   const fetchProject = useCallback(async () => {
-    if (!user) return;
+    // Убрали проверку (!user), чтобы публичные проекты грузились
     setIsLoading(true);
     try {
-      const idToken = await user.getIdToken();
+      // Если юзера нет, токен null
+      const idToken = user ? await user.getIdToken() : null;
+      const headers: HeadersInit = idToken ? { 'Authorization': `Bearer ${idToken}` } : {};
+      
       const res = await fetch(`/api/projects/${projectId}`, {
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: headers
       });
+      
       if (res.ok) {
         const data = await res.json();
         setProject(data);
@@ -81,10 +91,11 @@ export default function ProjectDetailPage() {
   }, [projectId, router, user]);
 
   useEffect(() => {
-    if (projectId && user) {
+    // Грузим проект, если есть ID
+    if (projectId) {
       fetchProject();
     }
-  }, [projectId, user, fetchProject]);
+  }, [projectId, fetchProject]); // user убрали из зависимостей, чтобы не перезапрашивать лишний раз
 
   const handleRedeploy = async () => {
     if (!project || !user) return;
@@ -193,7 +204,7 @@ export default function ProjectDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0A0A0A]">
+      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] bg-[#0A0A0A]">
         <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
       </div>
     );
@@ -201,7 +212,7 @@ export default function ProjectDetailPage() {
 
   if (!project) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-[#0A0A0A] text-gray-400">
+      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-[#0A0A0A] text-gray-400">
         <p>Проект не найден</p>
         <Button onClick={() => router.push('/')} className="mt-4">
           Вернуться на главную
@@ -243,8 +254,11 @@ export default function ProjectDetailPage() {
   const StatusIcon = statusConfig.icon;
   const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
 
+  // Проверяем, владелец ли текущий пользователь
+  const isOwner = user && user.email === project.owner;
+
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-gray-300">
+    <div className="min-h-full bg-[#0A0A0A] text-gray-300">
       <main className="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
         <Button
           variant="ghost"
@@ -288,49 +302,53 @@ export default function ProjectDetailPage() {
                 )}
               </div>
             </div>
-            <div className="flex gap-2 w-full md:w-auto">
-              <Button
-                onClick={handleRedeploy}
-                disabled={isRedeploying}
-                className="bg-white text-black hover:bg-gray-200 flex-1 md:flex-initial"
-              >
-                {isRedeploying ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    <span className="hidden md:inline">{language === 'ru' ? 'Редеплой' : 'Redeploy'}</span>
-                    <span className="md:hidden">Build</span>
-                  </>
-                )}
-              </Button>
-              <Button
-                onClick={handleDelete}
-                disabled={isDeleting}
-                variant="destructive"
-                className="flex-1 md:flex-initial"
-              >
-                {isDeleting ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <>
-                    <Trash2 className="h-4 w-4 mr-2" />
-                    <span className="hidden md:inline">{language === 'ru' ? 'Удалить' : 'Delete'}</span>
-                    <span className="md:hidden">Del</span>
-                  </>
-                )}
-              </Button>
-            </div>
+            
+            {/* Кнопки управления показываем ТОЛЬКО владельцу */}
+            {isOwner && (
+                <div className="flex gap-2 w-full md:w-auto">
+                <Button
+                    onClick={handleRedeploy}
+                    disabled={isRedeploying}
+                    className="bg-white text-black hover:bg-gray-200 flex-1 md:flex-initial"
+                >
+                    {isRedeploying ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                    <>
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        <span className="hidden md:inline">{language === 'ru' ? 'Редеплой' : 'Redeploy'}</span>
+                        <span className="md:hidden">Build</span>
+                    </>
+                    )}
+                </Button>
+                <Button
+                    onClick={handleDelete}
+                    disabled={isDeleting}
+                    variant="destructive"
+                    className="flex-1 md:flex-initial"
+                >
+                    {isDeleting ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                    <>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        <span className="hidden md:inline">{language === 'ru' ? 'Удалить' : 'Delete'}</span>
+                        <span className="md:hidden">Del</span>
+                    </>
+                    )}
+                </Button>
+                </div>
+            )}
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
-            {/* ⭐ АДАПТАЦИЯ: Горизонтальный скролл для табов на мобильных */}
             <div className="w-full overflow-x-auto pb-2 -mb-2 sm:mb-0 sm:pb-0 scrollbar-none">
                 <TabsList className="bg-black/50 w-full sm:w-auto flex justify-start min-w-[320px]">
                   <TabsTrigger className="flex-1" value="overview">{t.overview}</TabsTrigger>
-                  <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>
-                  <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>
-                  <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>
+                  {/* Скрываем табы управления от гостей */}
+                  {isOwner && <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>}
+                  {isOwner && <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>}
+                  {isOwner && <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>}
                 </TabsList>
             </div>
 
@@ -396,100 +414,105 @@ export default function ProjectDetailPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="env" className="mt-6">
-              <div className="space-y-4">
-                <div className="bg-black/30 rounded-lg p-4">
-                  <div className="text-sm font-medium text-gray-300 mb-3">
-                    {t.addEnvVar}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <Input
-                      value={newEnvKey}
-                      onChange={(e) => setNewEnvKey(e.target.value)}
-                      placeholder="KEY"
-                      className="bg-black/50 border-gray-700"
-                    />
-                    <Input
-                      value={newEnvValue}
-                      onChange={(e) => setNewEnvValue(e.target.value)}
-                      placeholder="VALUE"
-                      className="bg-black/50 border-gray-700"
-                      type="password"
-                    />
-                    <Button
-                      onClick={handleAddEnvVar}
-                      disabled={!newEnvKey.trim() || !newEnvValue.trim() || isSaving}
-                      className="bg-white text-black hover:bg-gray-200 flex-shrink-0"
-                    >
-                      {isSaving ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4 md:mr-2" />
-                          <span className="hidden md:inline">{t.add}</span>
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  {(project.envVars || []).length === 0 ? (
-                    <div className="text-center py-8 text-gray-500">
-                      {t.noEnvVars}
-                    </div>
-                  ) : (
-                    (project.envVars || []).map((envVar, index) => (
-                      <div key={index} className="bg-black/30 rounded-lg p-3 sm:p-4 flex items-center justify-between">
-                        <div className="flex-1 overflow-hidden">
-                          <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-green-400 font-mono text-xs">••••••••</span>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => copyToClipboard(envVar.value, `${envVar.key}-value`)}
-                              className="h-6 w-6 p-0"
-                            >
-                              {copiedKey === `${envVar.key}-value` ? (
-                                <Check className="h-3 w-3 text-green-400" />
-                              ) : (
-                                <Copy className="h-3 w-3 text-gray-400" />
-                              )}
-                            </Button>
-                          </div>
+            {/* Контент табов рендерим только для владельца */}
+            {isOwner && (
+                <>
+                    <TabsContent value="env" className="mt-6">
+                    <div className="space-y-4">
+                        <div className="bg-black/30 rounded-lg p-4">
+                        <div className="text-sm font-medium text-gray-300 mb-3">
+                            {t.addEnvVar}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveEnvVar(index)}
-                          disabled={isSaving}
-                          className="text-red-400 hover:text-red-300 ml-2"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            </TabsContent>
+                        <div className="flex flex-col sm:flex-row gap-2">
+                            <Input
+                            value={newEnvKey}
+                            onChange={(e) => setNewEnvKey(e.target.value)}
+                            placeholder="KEY"
+                            className="bg-black/50 border-gray-700"
+                            />
+                            <Input
+                            value={newEnvValue}
+                            onChange={(e) => setNewEnvValue(e.target.value)}
+                            placeholder="VALUE"
+                            className="bg-black/50 border-gray-700"
+                            type="password"
+                            />
+                            <Button
+                            onClick={handleAddEnvVar}
+                            disabled={!newEnvKey.trim() || !newEnvValue.trim() || isSaving}
+                            className="bg-white text-black hover:bg-gray-200 flex-shrink-0"
+                            >
+                            {isSaving ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                                <>
+                                <Plus className="h-4 w-4 md:mr-2" />
+                                <span className="hidden md:inline">{t.add}</span>
+                                </>
+                            )}
+                            </Button>
+                        </div>
+                        </div>
 
-            <TabsContent value="logs" className="mt-6">
-              <div className="bg-black/30 rounded-lg p-4 overflow-x-auto">
-                <pre className="font-mono text-xs text-gray-300 whitespace-pre">
-                  {project.deploymentLogs || t.noLogs}
-                </pre>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="settings" className="mt-6">
-               <Settings 
-                  project={project} 
-                  language={language} 
-                  onSettingsChange={fetchProject} 
-               />
-            </TabsContent>
+                        <div className="space-y-2">
+                        {(project.envVars || []).length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                            {t.noEnvVars}
+                            </div>
+                        ) : (
+                            (project.envVars || []).map((envVar, index) => (
+                            <div key={index} className="bg-black/30 rounded-lg p-3 sm:p-4 flex items-center justify-between">
+                                <div className="flex-1 overflow-hidden">
+                                <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-green-400 font-mono text-xs">••••••••</span>
+                                    <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => copyToClipboard(envVar.value, `${envVar.key}-value`)}
+                                    className="h-6 w-6 p-0"
+                                    >
+                                    {copiedKey === `${envVar.key}-value` ? (
+                                        <Check className="h-3 w-3 text-green-400" />
+                                    ) : (
+                                        <Copy className="h-3 w-3 text-gray-400" />
+                                    )}
+                                    </Button>
+                                </div>
+                                </div>
+                                <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleRemoveEnvVar(index)}
+                                disabled={isSaving}
+                                className="text-red-400 hover:text-red-300 ml-2"
+                                >
+                                <X className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            ))
+                        )}
+                        </div>
+                    </div>
+                    </TabsContent>
+
+                    <TabsContent value="logs" className="mt-6">
+                    <div className="bg-black/30 rounded-lg p-4 overflow-x-auto">
+                        <pre className="font-mono text-xs text-gray-300 whitespace-pre">
+                        {project.deploymentLogs || t.noLogs}
+                        </pre>
+                    </div>
+                    </TabsContent>
+                    
+                    <TabsContent value="settings" className="mt-6">
+                    <Settings 
+                        project={project} 
+                        language={language} 
+                        onSettingsChange={fetchProject} 
+                    />
+                    </TabsContent>
+                </>
+            )}
           </Tabs>
         </div>
       </main>
