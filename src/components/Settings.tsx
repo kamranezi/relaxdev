@@ -20,7 +20,8 @@ export function Settings({ project, language, onSettingsChange }: SettingsProps)
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const handleAutodeployChange = async (autodeploy: boolean) => {
+  // Универсальная функция для смены настроек
+  const handleSettingChange = async (key: 'autodeploy' | 'isPublic', value: boolean) => {
     if (!user) return;
     setIsSaving(true);
     setError(null);
@@ -28,20 +29,23 @@ export function Settings({ project, language, onSettingsChange }: SettingsProps)
 
     try {
       const token = await user.getIdToken();
+      // Отправляем запрос на обновление
       const response = await fetch(`/api/projects/${project.id}/settings`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
-        body: JSON.stringify({ autodeploy }),
+        // Динамически формируем тело: { autodeploy: ... } или { isPublic: ... }
+        body: JSON.stringify({ [key]: value }),
       });
 
       if (!response.ok) {
-        throw new Error(t.autodeployError);
+        throw new Error(t.autodeployError || 'Failed to update settings');
       }
-      setSuccess(t.autodeploySuccess);
-      onSettingsChange();
+      
+      setSuccess(t.autodeploySuccess || 'Settings saved');
+      onSettingsChange(); // Обновляем данные в родителе
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -54,11 +58,13 @@ export function Settings({ project, language, onSettingsChange }: SettingsProps)
   };
 
   return (
-    <div className="rounded-lg bg-[#1A1A1A] p-6 shadow-md">
+    <div className="rounded-lg bg-[#1A1A1A] p-6 shadow-md space-y-6">
       <h3 className="text-xl font-bold text-white mb-6">{t.settings}</h3>
+      
+      {/* --- Блок Автодеплоя --- */}
       <div className="flex items-center justify-between space-x-4">
         <div className="flex flex-col">
-          <Label htmlFor="autodeploy-switch" className="text-white font-medium">
+          <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer">
             {t.autodeploy}
           </Label>
           <p className="text-sm text-gray-400 mt-1">
@@ -68,13 +74,35 @@ export function Settings({ project, language, onSettingsChange }: SettingsProps)
         <Switch
           id="autodeploy-switch"
           checked={project.autodeploy}
-          onCheckedChange={handleAutodeployChange}
+          onCheckedChange={(checked) => handleSettingChange('autodeploy', checked)}
           disabled={isSaving}
         />
       </div>
-      {isSaving && <p className="text-sm text-gray-400 mt-4">Сохранение...</p>}
-      {error && <p className="text-sm text-red-500 mt-4">{error}</p>}
-      {success && <p className="text-sm text-green-500 mt-4">{success}</p>}
+
+      {/* --- Блок Публичности (Которого не хватало) --- */}
+      <div className="flex items-center justify-between space-x-4 pt-6 border-t border-gray-800">
+        <div className="flex flex-col">
+          <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer">
+            {t.publicProject || 'Публичный проект'}
+          </Label>
+          <p className="text-sm text-gray-400 mt-1">
+            {t.publicProjectDescription || 'Разрешить всем пользователям просматривать этот проект.'}
+          </p>
+        </div>
+        <Switch
+          id="public-switch"
+          checked={project.isPublic}
+          onCheckedChange={(checked) => handleSettingChange('isPublic', checked)}
+          disabled={isSaving}
+        />
+      </div>
+
+      {/* Сообщения о статусе */}
+      <div className="min-h-[20px]">
+        {isSaving && <p className="text-sm text-gray-400">Сохранение...</p>}
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        {success && <p className="text-sm text-green-500">{success}</p>}
+      </div>
     </div>
   );
 }

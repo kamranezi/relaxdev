@@ -32,11 +32,11 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'User GitHub token not found' }, { status: 403 });
     }
 
-    // Используем специальный токен для запуска сборки
+    // ВАЖНО: Этот токен должен быть в переменных окружения ОБЛАКА
     const builderGithubToken = process.env.GITHUB_ACCESS_TOKEN;
     if (!builderGithubToken) {
-        console.error('GITHUB_ACCESS_TOKEN is not set on the server');
-        return NextResponse.json({ error: 'Server configuration error' }, { status: 500 });
+        console.error('CRITICAL: GITHUB_ACCESS_TOKEN is missing on server');
+        return NextResponse.json({ error: 'Server configuration error: Token missing' }, { status: 500 });
     }
 
     const octokit = new Octokit({ auth: builderGithubToken });
@@ -58,11 +58,11 @@ export async function POST(request: NextRequest) {
       status: 'Сборка',
       repoUrl: gitUrl,
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
-      domain: '', // ⭐ Исправлено: пустая строка вместо гадания
+      domain: '', // Ссылка появится после сборки
       owner: ownerEmail,
       ownerLogin: ownerLogin,
       isPublic: isPublic || false,
-      autodeploy: autodeploy !== false, // Default true
+      autodeploy: autodeploy !== false,
       envVars: envVars || [],
       buildErrors: [],
       missingEnvVars: [],
@@ -77,6 +77,7 @@ export async function POST(request: NextRequest) {
       ? JSON.stringify(envVars) 
       : '';
     
+    // Запускаем workflow в билдере
     await octokit.actions.createWorkflowDispatch({
       owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
       repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
@@ -85,7 +86,6 @@ export async function POST(request: NextRequest) {
       inputs: {
         gitUrl: gitUrl,
         projectName: safeName,
-        // Передаем токен пользователя для клонирования его репозитория
         gitToken: userGithubToken || '', 
         owner: ownerEmail,
         envVars: envVarsString,
@@ -96,8 +96,12 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(projectData);
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('GitHub API Error:', error);
+    // Логируем подробности ошибки от GitHub
+    if (error.response) {
+        console.error('GitHub Error Data:', error.response.data);
+    }
     const message = error instanceof Error ? error.message : 'Failed to trigger build';
     return NextResponse.json(
       { error: message }, 
