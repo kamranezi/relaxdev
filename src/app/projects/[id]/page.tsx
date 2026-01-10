@@ -20,12 +20,11 @@ import {
   Copy,
   Check
 } from 'lucide-react';
-import { getTranslation } from '@/lib/i18n'; // Language type not needed here anymore
+import { getTranslation } from '@/lib/i18n';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Settings } from '@/components/Settings';
-import { useLanguage } from '@/components/LanguageContext'; // ⭐ Импорт хука
+import { useLanguage } from '@/components/LanguageContext';
 
-// Иконка Github
 const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg 
     xmlns="http://www.w3.org/2000/svg" 
@@ -48,10 +47,7 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  
-  // ⭐ ИСПОЛЬЗУЕМ ГЛОБАЛЬНЫЙ ЯЗЫК
   const { language } = useLanguage(); 
-  // const [language] = useState<Language>('ru'); // Удалено
 
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -66,10 +62,8 @@ export default function ProjectDetailPage() {
   const projectId = params.id as string;
 
   const fetchProject = useCallback(async () => {
-    // Убрали проверку (!user), чтобы публичные проекты грузились
     setIsLoading(true);
     try {
-      // Если юзера нет, токен null
       const idToken = user ? await user.getIdToken() : null;
       const headers: HeadersInit = idToken ? { 'Authorization': `Bearer ${idToken}` } : {};
       
@@ -91,11 +85,10 @@ export default function ProjectDetailPage() {
   }, [projectId, router, user]);
 
   useEffect(() => {
-    // Грузим проект, если есть ID
     if (projectId) {
       fetchProject();
     }
-  }, [projectId, fetchProject]); // user убрали из зависимостей, чтобы не перезапрашивать лишний раз
+  }, [projectId, fetchProject]);
 
   const handleRedeploy = async () => {
     if (!project || !user) return;
@@ -119,7 +112,7 @@ export default function ProjectDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!user || !confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этот проект?' : 'Are you sure you want to delete this project?')) {
+    if (!user || !confirm(language === 'ru' ? 'Вы уверены, что хотите удалить этот проект? Это удалит также контейнер.' : 'Are you sure? This will delete the container.')) {
       return;
     }
     setIsDeleting(true);
@@ -131,6 +124,8 @@ export default function ProjectDetailPage() {
       });
       if (res.ok) {
         router.push('/');
+      } else {
+          alert('Failed to delete project');
       }
     } catch (error) {
       console.error('Ошибка удаления:', error);
@@ -254,8 +249,8 @@ export default function ProjectDetailPage() {
   const StatusIcon = statusConfig.icon;
   const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
 
-  // Проверяем, владелец ли текущий пользователь
-  const isOwner = user && user.email === project.owner;
+  // ⭐ ПРОВЕРКА ПРАВ: Если сервер прислал переменные окружения, значит у нас есть доступ к управлению (Админ или Владелец)
+  const canManage = !!project.envVars;
 
   return (
     <div className="min-h-full bg-[#0A0A0A] text-gray-300">
@@ -303,8 +298,8 @@ export default function ProjectDetailPage() {
               </div>
             </div>
             
-            {/* Кнопки управления показываем ТОЛЬКО владельцу */}
-            {isOwner && (
+            {/* Кнопки управления показываем тем, у кого есть права */}
+            {canManage && (
                 <div className="flex gap-2 w-full md:w-auto">
                 <Button
                     onClick={handleRedeploy}
@@ -346,9 +341,9 @@ export default function ProjectDetailPage() {
                 <TabsList className="bg-black/50 w-full sm:w-auto flex justify-start min-w-[320px]">
                   <TabsTrigger className="flex-1" value="overview">{t.overview}</TabsTrigger>
                   {/* Скрываем табы управления от гостей */}
-                  {isOwner && <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>}
-                  {isOwner && <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>}
-                  {isOwner && <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>}
+                  {canManage && <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>}
+                  {canManage && <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>}
+                  {canManage && <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>}
                 </TabsList>
             </div>
 
@@ -414,8 +409,8 @@ export default function ProjectDetailPage() {
               </div>
             </TabsContent>
 
-            {/* Контент табов рендерим только для владельца */}
-            {isOwner && (
+            {/* Контент табов рендерим только для управляющих (Владелец/Админ) */}
+            {canManage && (
                 <>
                     <TabsContent value="env" className="mt-6">
                     <div className="space-y-4">
