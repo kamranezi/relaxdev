@@ -43,6 +43,7 @@ export const translations = {
     redeploy: 'Редеплой',
     delete: 'Удалить',
     back: 'Назад',
+    backToProjects: 'Назад к проектам', // ⭐ Добавлено
     projectNotFound: 'Проект не найден',
     backToHome: 'Вернуться на главную',
     redeployError: 'Ошибка редеплоя',
@@ -63,13 +64,21 @@ export const translations = {
     publicProject: 'Публичный проект',
     publicProjectDescription: 'Разрешить всем пользователям в Интернете просматривать этот проект.',
 
-    // --- НОВЫЕ КЛЮЧИ ДЛЯ ENV MANAGER ---
+    // Env Manager
     envListMode: 'Список',
     envRawMode: 'Редактор (.env)',
     uploadEnv: 'Загрузить .env',
     saveChanges: 'Сохранить',
     copy: 'Копировать',
-    // ---------------------------------
+
+    // ⭐ ИСТОРИЯ И ОТКАТЫ (НОВОЕ)
+    history: 'История',
+    deploymentHistory: 'История деплоев',
+    noDeployments: 'История деплоев пуста. Запустите деплой.',
+    rollback: 'Откатить',
+    rollbackConfirm: 'Вы уверены, что хотите откатиться к этой версии?',
+    rollbackSuccess: 'Откат успешно запущен',
+    rollbackError: 'Ошибка отката',
 
     warnings: {
         title: 'Проблемы со сборкой'
@@ -117,6 +126,7 @@ export const translations = {
     redeploy: 'Redeploy',
     delete: 'Delete',
     back: 'Back',
+    backToProjects: 'Back to Projects', // ⭐ Added
     projectNotFound: 'Project not found',
     backToHome: 'Back to Home',
     redeployError: 'Redeploy Error',
@@ -137,13 +147,21 @@ export const translations = {
     publicProject: 'Public Project',
     publicProjectDescription: 'Allow anyone on the internet to view this project.',
 
-    // --- NEW KEYS FOR ENV MANAGER ---
+    // Env Manager
     envListMode: 'List',
     envRawMode: 'Editor (.env)',
     uploadEnv: 'Upload .env',
     saveChanges: 'Save Changes',
     copy: 'Copy',
-    // ---------------------------------
+
+    // ⭐ HISTORY & ROLLBACK (NEW)
+    history: 'History',
+    deploymentHistory: 'Deployment History',
+    noDeployments: 'No deployment history yet.',
+    rollback: 'Rollback',
+    rollbackConfirm: 'Are you sure you want to rollback to this version?',
+    rollbackSuccess: 'Rollback initiated successfully',
+    rollbackError: 'Rollback failed',
 
     warnings: {
         title: 'Build warnings'

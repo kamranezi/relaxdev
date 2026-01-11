@@ -5,24 +5,41 @@ export interface ProjectEnvVar {
   value: string;
 }
 
+// ⭐ НОВЫЙ ИНТЕРФЕЙС ДЛЯ ИСТОРИИ ДЕПЛОЕВ
+export interface Deployment {
+  id: string;
+  image: string;
+  createdAt: string;
+  status: string;
+  initiator?: string; // Например: 'Builder' или 'User'
+}
+
 export interface Project {
   id: string;
   name: string;
   status: ProjectStatus;
   repoUrl: string;
-  lastDeployed: string; // Теперь обязательно (мы его инициализируем при создании)
-  targetImage: string; // Yandex Container Registry
+  lastDeployed: string;
+  targetImage: string;
   domain: string;
-  owner: string; // email пользователя-владельца
-  ownerLogin?: string | null; // ⭐ ИСПРАВЛЕНО: добавили | null, так как база может вернуть null
+  owner: string;
+  ownerLogin?: string | null;
   isPublic: boolean;
-  autodeploy?: boolean; // Опционально, так как в старых проектах может не быть
+  autodeploy?: boolean;
+  webhookId?: number | null; // ⭐ Добавили ID вебхука
+  
   envVars?: ProjectEnvVar[];
   buildErrors?: string[];
   missingEnvVars?: string[];
   deploymentLogs?: string;
   gitToken?: string;
+  
   createdAt: string;
   updatedAt: string;
+  buildStartedAt?: number; // ⭐ Добавили время старта билда (для таймаутов)
   canEdit?: boolean;
+
+  // ⭐ НОВЫЕ ПОЛЯ ДЛЯ ИСТОРИИ И ОТКАТОВ
+  currentImage?: string; // Текущий активный образ
+  deployments?: Record<string, Deployment>; // История (ключ = ID деплоя)
 }

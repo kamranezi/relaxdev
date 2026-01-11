@@ -31,11 +31,13 @@ export async function POST(
 
     // Получаем тело запроса
     const body = await request.json();
-    const { status, deploymentLogs, domain } = body;
+    // ⭐ ДОБАВЛЕНО: извлекаем image
+    const { status, deploymentLogs, domain, image } = body;
 
     console.log(`[Update Status] 📥 Received update for ${projectId}:`, {
       status,
       domain: domain || 'not provided',
+      image: image || 'none',
       logs: deploymentLogs ? `${deploymentLogs.substring(0, 50)}...` : 'none'
     });
 
@@ -60,15 +62,33 @@ export async function POST(
     if (status === 'success') {
       updates.status = 'Активен';
       updates.lastDeployed = new Date().toISOString();
+      
+      // ⭐ НОВАЯ ЛОГИКА: Сохраняем историю деплоев
+      if (image) {
+          updates.currentImage = image; // Обновляем текущий активный образ
+          
+          // Добавляем запись в историю
+          const deployRef = projectRef.child('deployments').push();
+          await deployRef.set({
+              id: deployRef.key,
+              image: image,
+              createdAt: new Date().toISOString(),
+              status: 'Success',
+              initiator: 'Builder' // Метка, что создано авто-билдером
+          });
+          console.log(`[Update Status] 📜 Saved deployment history: ${image}`);
+      }
+
       console.log(`[Update Status] ✅ Marking ${projectId} as Активен`);
     } else if (status === 'error') {
       updates.status = 'Ошибка';
       console.log(`[Update Status] ❌ Marking ${projectId} as Ошибка`);
     } else if (status === 'building') {
       updates.status = 'Сборка';
+      // Сбрасываем время старта билда, если оно пришло (для таймаутов)
+      updates.buildStartedAt = Date.now(); 
       console.log(`[Update Status] 🔨 Marking ${projectId} as Сборка`);
     } else {
-      // Если пришёл незнакомый статус, логируем и сохраняем как есть
       updates.status = status;
       console.warn(`[Update Status] ⚠️ Unknown status "${status}" for ${projectId}`);
     }

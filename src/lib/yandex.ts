@@ -37,6 +37,8 @@ export async function getIAMToken(): Promise<string> {
   }
 }
 
+// --- КОНТЕЙНЕРЫ (RUNTIME) ---
+
 export async function listContainers(folderId: string) {
   if (!folderId) throw new Error('Folder ID is required');
   const token = await getIAMToken();
@@ -87,6 +89,41 @@ export async function deleteContainer(containerId: string) {
   return true;
 }
 
+// ⭐ НОВАЯ ФУНКЦИЯ: Деплой ревизии (для отката версий)
+export async function deployRevision(containerId: string, imageUri: string, serviceAccountId: string, envVars: Record<string, string>) {
+    const token = await getIAMToken();
+    
+    const body: any = {
+        containerId,
+        image: imageUri,
+        resources: { cores: "1", memory: "1073741824" }, // 1GB (как в workflow)
+        serviceAccountId,
+        executionTimeout: "60s"
+    };
+
+    if (Object.keys(envVars).length > 0) {
+        body.environment = envVars;
+    }
+
+    const response = await fetch(
+        `https://serverless-containers.api.cloud.yandex.net/containers/v1/containers/${containerId}:deployRevision`,
+        {
+            method: 'POST',
+            headers: { 
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        }
+    );
+
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Deploy revision failed: ${text}`);
+    }
+    return response.json();
+}
+
 // --- УДАЛЕНИЕ ИЗ РЕЕСТРА (ПОЛНОЕ) ---
 
 // 1. Удаление конкретного образа по ID
@@ -135,7 +172,31 @@ export async function deleteRepository(repositoryId: string) {
   }
 }
 
-// ⭐ ГЛАВНАЯ ФУНКЦИЯ ОЧИСТКИ (ИСПРАВЛЕННАЯ)
+// ⭐ НОВАЯ ФУНКЦИЯ: Получение ВСЕХ репозиториев (с пагинацией)
+async function listAllRepositories(registryId: string, token: string) {
+    let repos: any[] = [];
+    let pageToken = '';
+    
+    do {
+        const res = await fetch(
+            `https://container-registry.api.cloud.yandex.net/container-registry/v1/repositories?registryId=${registryId}&pageToken=${pageToken}`,
+            { headers: { 'Authorization': `Bearer ${token}` } }
+        );
+        if (!res.ok) {
+            console.error(`Failed to list repositories: ${res.status}`);
+            break;
+        }
+        const data: any = await res.json();
+        if (data.repositories) {
+            repos = repos.concat(data.repositories);
+        }
+        pageToken = data.nextPageToken || '';
+    } while (pageToken);
+    
+    return repos;
+}
+
+// ⭐ ГЛАВНАЯ ФУНКЦИЯ ОЧИСТКИ (ИСПРАВЛЕННАЯ С ПАГИНАЦИЕЙ)
 export async function deleteProjectRegistry(projectName: string) {
     const registryId = process.env.YC_REGISTRY_ID;
     if (!registryId) {
@@ -144,25 +205,15 @@ export async function deleteProjectRegistry(projectName: string) {
     }
     try {
         const token = await getIAMToken();
-        // 1. Ищем репозиторий проекта
-        const listRes = await fetch(
-            `https://container-registry.api.cloud.yandex.net/container-registry/v1/repositories?registryId=${registryId}`,
-            { headers: { 'Authorization': `Bearer ${token}` } }
-        );
         
-        if (!listRes.ok) {
-            console.error(`Failed to list repositories: ${listRes.status}`);
-            return;
-        }
+        console.log(`Searching for repo "${projectName}" in registry...`);
         
-        const data = await listRes.json();
-        const repos = data.repositories || [];
+        // 1. Ищем репозиторий с учетом пагинации (чтобы найти, даже если их > 100)
+        const repos = await listAllRepositories(registryId, token);
         
-        console.log(`Searching for repo "${projectName}" in registry. Found ${repos.length} total.`);
+        console.log(`Total repos found: ${repos.length}`);
 
-        // ⭐ ИСПРАВЛЕНИЕ ПОИСКА:
-        // Теперь ищем либо точное совпадение имени, либо окончание пути
-        // (на случай если имя возвращается как 'id/name')
+        // Поиск с учетом разных форматов имен
         const repo = repos.find((r: any) => 
             r.name === projectName || 
             r.name.endsWith('/' + projectName)
@@ -175,7 +226,6 @@ export async function deleteProjectRegistry(projectName: string) {
             const images = await listImages(repo.id);
             if (images.length > 0) {
                 console.log(`Deleting ${images.length} images from ${repo.name}...`);
-                // Используем Promise.allSettled
                 await Promise.allSettled(images.map((img: any) => deleteImage(img.id)));
             } else {
                 console.log('No images found inside repository.');
@@ -186,7 +236,8 @@ export async function deleteProjectRegistry(projectName: string) {
             await deleteRepository(repo.id);
             console.log(`Registry cleanup for ${projectName} complete.`);
         } else {
-            console.warn(`Repository for project "${projectName}" NOT FOUND. Available repos:`, repos.map((r: any) => r.name).join(', '));
+            // Вывод списка для отладки (только имена)
+            console.warn(`Repository for "${projectName}" NOT FOUND. Available:`, repos.map((r: any) => r.name).join(', '));
         }
     } catch (e) {
         console.error('Error cleaning up registry:', e);

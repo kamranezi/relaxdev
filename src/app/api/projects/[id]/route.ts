@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { db, adminAuth } from "@/lib/firebase-admin";
 import { getContainerByName, deleteContainer, deleteProjectRegistry } from '@/lib/yandex';
 
-// --- GET: Получение проекта ---
+// --- GET: Получение проекта (с авто-сбросом статуса) ---
 export async function GET(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     if (!db || !adminAuth) return NextResponse.json({ error: "No DB" }, { status: 500 });
@@ -89,7 +89,6 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   } catch (e) { return NextResponse.json({ error: 'Server Error' }, { status: 500 }); }
 }
 
-// ... (остальной код DELETE и PUT без изменений)
 // --- DELETE: Удаление проекта ---
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
@@ -115,22 +114,31 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
         if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 });
         if (project.owner?.toLowerCase() !== email && !isAdmin) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
-        // 1. Удаляем контейнер
+        // 1. Удаляем контейнер (Serverless Container)
         try {
             const container = await getContainerByName(id);
-            if (container?.id) await deleteContainer(container.id);
+            if (container?.id) {
+                console.log(`Deleting container: ${container.id}`);
+                await deleteContainer(container.id);
+            }
         } catch (e) { console.error('Container delete failed:', e); }
 
-        // 2. Удаляем образы
-        try { await deleteProjectRegistry(id); } catch (e) { console.error('Registry delete failed:', e); }
+        // 2. Удаляем образы (Container Registry)
+        try { 
+            console.log(`Deleting registry for project: ${id}`);
+            await deleteProjectRegistry(id); 
+        } catch (e) { console.error('Registry delete failed:', e); }
 
-        // 3. Удаляем из БД
+        // 3. Удаляем из БД (Firebase)
         await projectRef.remove();
         return NextResponse.json({ success: true });
-    } catch (e) { return NextResponse.json({ error: 'Error' }, { status: 500 }); }
+    } catch (e) { 
+        console.error("Delete Error:", e);
+        return NextResponse.json({ error: 'Error' }, { status: 500 }); 
+    }
 }
 
-// --- PUT: Обновление ---
+// --- PUT: Обновление (настройки) ---
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
     try {
         if (!db || !adminAuth) return NextResponse.json({ error: "No DB" }, { status: 500 });

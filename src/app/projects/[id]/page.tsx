@@ -1,374 +1,299 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
 import { useAuth } from '@/components/AuthProvider';
 import { Project } from '@/types';
-import { Button } from '@/components/ui/button';
-import { 
-  CheckCircle2, 
-  Loader2, 
-  XCircle, 
-  ExternalLink, 
-  Trash2, 
-  RefreshCw, 
-  ArrowLeft,
-  AlertCircle,
-} from 'lucide-react';
-import { getTranslation } from '@/lib/i18n';
+import { Loader2, ArrowLeft, Terminal, Settings, RefreshCw, Globe, AlertCircle, History, RotateCcw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Settings } from '@/components/Settings';
+import { EnvVarsManager } from '@/components/EnvVarsManager';
+import { ProjectSettings } from '@/components/Settings';
 import { useLanguage } from '@/components/LanguageContext';
-import { EnvVarsManager } from '@/components/EnvVarsManager'; // ⭐ Импорт нового компонента
+import { getTranslation } from '@/lib/i18n';
 
-const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    width="24" 
-    height="24" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="2" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    {...props}
-  >
-    <path d="M15 22v-4a4.8 4.8 0 0 0-1-3.5c3 0 6-2 6-5.5.08-1.25-.27-2.48-1-3.5.28-1.15.28-2.35.0-3.5 0 0-1 0-3 1.5-2.64-.5-5.36-.5-8 0C6 2 5 2 5 2c-.3 1.15-.3 2.35.0 3.5A5.403 5.403 0 0 0 4 9c0 3.5 3 5.5 6 5.5-.39.49-.68 1.05-.85 1.65-.17.6-.22 1.23-.15 1.85v4"/>
-    <path d="M9 18c-4.51 2-5-2-7-2"/>
-  </svg>
-);
-
-export default function ProjectDetailPage() {
-  const params = useParams();
+export default function ProjectDetailsPage() {
+  const { id } = useParams();
   const router = useRouter();
   const { user } = useAuth();
-  const { language } = useLanguage(); 
+  const { language } = useLanguage();
+  const t = getTranslation(language);
 
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isRedeploying, setIsRedeploying] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false);
 
-  const t = getTranslation(language);
-  const projectId = params.id as string;
+  // Новое состояние для кнопки отката
+  const [isRollingBack, setIsRollingBack] = useState<string | null>(null);
 
-  const fetchProject = useCallback(async () => {
-    setIsLoading(true);
+  const loadProject = useCallback(async () => {
+    if (!user || !id) return;
     try {
-      const idToken = user ? await user.getIdToken() : null;
-      const headers: HeadersInit = idToken ? { 'Authorization': `Bearer ${idToken}` } : {};
-      
-      const res = await fetch(`/api/projects/${projectId}`, {
-        headers: headers
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/projects/${id}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      
       if (res.ok) {
         const data = await res.json();
         setProject(data);
-      } else if (res.status === 404) {
+      } else {
         router.push('/');
       }
-    } catch (error) {
-      console.error('Ошибка загрузки проекта:', error);
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsLoading(false);
     }
-  }, [projectId, router, user]);
+  }, [user, id, router]);
 
   useEffect(() => {
-    if (projectId) {
-      fetchProject();
-    }
-  }, [projectId, fetchProject]);
+    loadProject();
+    const interval = setInterval(loadProject, 5000);
+    return () => clearInterval(interval);
+  }, [loadProject]);
 
   const handleRedeploy = async () => {
-    if (!project || !user) return;
+    if (!user || !project) return;
     setIsRedeploying(true);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/projects/${projectId}/redeploy`, {
+      const token = await user.getIdToken();
+      await fetch(`/api/projects/${project.id}/redeploy`, {
         method: 'POST',
-        headers: { 'Authorization': `Bearer ${idToken}` }
+        headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) {
-        await fetchProject();
-        setTimeout(fetchProject, 3000);
-      }
-    } catch (error) {
-      console.error('Ошибка редеплоя:', error);
-      alert(t.redeployError);
+      await loadProject();
+    } catch (e) {
+      console.error(e);
     } finally {
       setIsRedeploying(false);
     }
   };
 
-  const handleDelete = async () => {
-    if (!user || !confirm(t.deleteConfirmation)) {
-      return;
-    }
-    setIsDeleting(true);
+  // ⭐ ФУНКЦИЯ ОТКАТА (ROLLBACK)
+  const handleRollback = async (imageUri: string) => {
+    if (!user || !project || isRollingBack) return;
+
+    // Подтверждение
+    if (!confirm(language === 'ru' ? 'Вы уверены, что хотите откатиться к этой версии?' : 'Are you sure you want to rollback to this version?')) return;
+
+    setIsRollingBack(imageUri);
     try {
-      const idToken = await user.getIdToken();
-      const res = await fetch(`/api/projects/${projectId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${idToken}` }
+      const token = await user.getIdToken();
+      const res = await fetch(`/api/projects/${project.id}/redeploy`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ image: imageUri }) // Передаем конкретный образ
       });
-      if (res.ok) {
-        router.push('/');
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(`Error: ${err.error}`);
       } else {
-          alert(t.deleteError);
+        await loadProject();
       }
-    } catch (error) {
-      console.error('Ошибка удаления:', error);
-      alert(t.deleteError);
+    } catch (e) {
+      console.error(e);
+      alert('Rollback failed');
     } finally {
-      setIsDeleting(false);
+      setIsRollingBack(null);
     }
   };
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-[calc(100vh-80px)] bg-[#0A0A0A]">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-      </div>
-    );
+    return <div className="flex h-screen items-center justify-center bg-black text-white"><Loader2 className="animate-spin" /></div>;
   }
 
-  if (!project) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-[calc(100vh-80px)] bg-[#0A0A0A] text-gray-400">
-        <p>{t.projectNotFound}</p>
-        <Button onClick={() => router.push('/')} className="mt-4">
-          {t.backToHome}
-        </Button>
-      </div>
-    );
-  }
+  if (!project) return null;
 
-  const getStatusConfig = () => {
-    const isActive = project.status === 'Активен' || project.status === 'Live';
-    const isBuilding = project.status === 'Сборка' || project.status === 'Building';
-    
-    if (isActive) {
-      return {
-        icon: CheckCircle2,
-        color: 'text-green-500',
-        bgColor: 'bg-green-500/10',
-        text: t.status.active,
-      };
-    }
-    if (isBuilding) {
-      return {
-        icon: Loader2,
-        color: 'text-yellow-500',
-        bgColor: 'bg-yellow-500/10',
-        text: t.status.building,
-        animate: true,
-      };
-    }
-    return {
-      icon: XCircle,
-      color: 'text-red-500',
-      bgColor: 'bg-red-500/10',
-      text: t.status.error,
-    };
-  };
+  const domainUrl = project.domain ? (project.domain.startsWith('http') ? project.domain : `https://${project.domain}`) : null;
+  const isOwner = project.canEdit;
 
-  const statusConfig = getStatusConfig();
-  const StatusIcon = statusConfig.icon;
-  const domainUrl = project.domain.startsWith('http') ? project.domain : `https://${project.domain}`;
-  
-  // Кнопки управления и табы показываем только если есть доступ к переменным (Владелец/Админ)
-  const canManage = !!project.envVars;
+  // Сортировка деплоев (новые сверху)
+  const deploymentsList = project.deployments ? Object.values(project.deployments).reverse() : [];
 
   return (
-    <div className="min-h-full bg-[#0A0A0A] text-gray-300">
-      <main className="max-w-6xl mx-auto p-4 sm:p-6 md:p-8">
+    <div className="min-h-screen bg-black text-white p-4 sm:p-8 font-sans">
+      <div className="max-w-5xl mx-auto">
         <Button
           variant="ghost"
           onClick={() => router.push('/')}
-          className="mb-4 md:mb-6 text-gray-400 hover:text-white pl-0"
+          className="mb-6 text-gray-400 hover:text-white pl-0"
         >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          {t.back}
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t.backToProjects}
         </Button>
 
-        <div className="bg-[#1A1A1A] rounded-lg shadow-lg p-4 sm:p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-start justify-between mb-6 gap-4">
-            <div className="flex-1">
-              <div className="flex items-start sm:items-center gap-3 mb-2 flex-wrap">
-                <h1 className="text-2xl sm:text-3xl font-bold text-white break-all">{project.name}</h1>
-                <span className={`px-3 py-1 rounded-full text-xs sm:text-sm flex items-center gap-2 ${statusConfig.color} ${statusConfig.bgColor} flex-shrink-0`}>
-                  <StatusIcon className={`h-4 w-4 ${statusConfig.animate ? 'animate-spin' : ''}`} />
-                  {statusConfig.text}
-                </span>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-sm text-gray-400">
-                <a
-                  href={project.repoUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 hover:text-white transition-colors truncate"
-                >
-                  <GithubIcon className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">{project.repoUrl.replace('https://github.com/', '')}</span>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 border-b border-gray-800 pb-6">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              {project.name}
+              {project.status === 'Активен' && <div className="w-3 h-3 bg-green-500 rounded-full shadow-[0_0_10px_rgba(34,197,94,0.5)]" />}
+              {(project.status === 'Сборка' || isRedeploying) && <Loader2 className="w-5 h-5 text-yellow-500 animate-spin" />}
+              {project.status === 'Ошибка' && <div className="w-3 h-3 bg-red-500 rounded-full" />}
+            </h1>
+            <div className="flex items-center gap-4 mt-2 text-sm text-gray-400">
+              {domainUrl ? (
+                <a href={domainUrl} target="_blank" rel="noreferrer" className="flex items-center hover:text-blue-400 transition-colors">
+                  <Globe className="w-4 h-4 mr-1" />
+                  {project.domain}
                 </a>
-                {project.domain && (
-                  <a
-                    href={domainUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 hover:text-cyan-400 transition-colors truncate"
-                  >
-                    <ExternalLink className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">{project.domain}</span>
-                  </a>
-                )}
-              </div>
+              ) : (
+                <span className="italic">No domain attached</span>
+              )}
+              <span className="text-gray-600">|</span>
+              <span>Updated: {new Date(project.updatedAt).toLocaleString()}</span>
             </div>
-            
-            {canManage && (
-                <div className="flex gap-2 w-full md:w-auto">
-                <Button
-                    onClick={handleRedeploy}
-                    disabled={isRedeploying}
-                    className="bg-white text-black hover:bg-gray-200 flex-1 md:flex-initial"
-                >
-                    {isRedeploying ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                    <>
-                        <RefreshCw className="h-4 w-4 mr-2" />
-                        <span className="hidden md:inline">{t.redeploy}</span>
-                        <span className="md:hidden">{t.buildShort || t.redeploy}</span>
-                    </>
-                    )}
-                </Button>
-                <Button
-                    onClick={handleDelete}
-                    disabled={isDeleting}
-                    variant="destructive"
-                    className="flex-1 md:flex-initial"
-                >
-                    {isDeleting ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                    <>
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        <span className="hidden md:inline">{t.delete}</span>
-                        <span className="md:hidden">{t.deleteShort || t.delete}</span>
-                    </>
-                    )}
-                </Button>
-                </div>
-            )}
           </div>
 
-          <Tabs defaultValue="overview" className="w-full">
-            {/* ⭐ ИСПРАВЛЕНИЕ: overflow-x-auto, no-scrollbar и правильный padding/margin */}
-            <div className="w-full overflow-x-auto pb-2 -mb-2 sm:mb-0 sm:pb-0 scrollbar-none">
-                {/* ⭐ ИСПРАВЛЕНИЕ: inline-flex (чтобы работало min-w) и flex-nowrap */}
-                <TabsList className="bg-black/50 inline-flex w-auto min-w-full sm:w-auto sm:min-w-0 justify-start h-auto p-1">
-                  <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="overview">{t.overview}</TabsTrigger>
-                  {canManage && <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="env">{t.envVars}</TabsTrigger>}
-                  {canManage && <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="logs">{t.logs}</TabsTrigger>}
-                  {canManage && <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="settings">{t.settings}</TabsTrigger>}
-                </TabsList>
+          {isOwner && (
+            <div className="flex gap-3 w-full md:w-auto">
+              <Button
+                onClick={handleRedeploy}
+                disabled={isRedeploying || project.status === 'Сборка'}
+                className="bg-white text-black hover:bg-gray-200 w-full md:w-auto"
+              >
+                {isRedeploying ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                {t.redeploy}
+              </Button>
             </div>
-
-            <TabsContent value="overview" className="mt-6">
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{t.owner}</div>
-                    <div className="text-white truncate">{project.owner}</div>
-                  </div>
-                  <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{t.lastDeployed}</div>
-                    <div className="text-white">
-                      {new Date(project.lastDeployed).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
-                    </div>
-                  </div>
-                  <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{t.created}</div>
-                    <div className="text-white">
-                      {new Date(project.createdAt).toLocaleString(language === 'ru' ? 'ru-RU' : 'en-US')}
-                    </div>
-                  </div>
-                  <div className="bg-black/30 rounded-lg p-4">
-                    <div className="text-sm text-gray-400 mb-1">{t.domain}</div>
-                    <div className="text-white font-mono text-sm truncate">{project.domain}</div>
-                  </div>
-                </div>
-
-                {(project.buildErrors && project.buildErrors.length > 0) || 
-                 (project.missingEnvVars && project.missingEnvVars.length > 0) ? (
-                  <div className="bg-yellow-500/10 border border-yellow-500/50 rounded-lg p-4">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="h-5 w-5 text-yellow-500 mt-0.5 flex-shrink-0" />
-                      <div className="flex-1 space-y-2">
-                        {project.buildErrors && project.buildErrors.length > 0 && (
-                          <div>
-                            <div className="text-sm font-medium text-yellow-400 mb-1">
-                              {t.buildErrors}
-                            </div>
-                            <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
-                              {project.buildErrors.map((error, i) => (
-                                <li key={i} className="break-words">{error}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        {project.missingEnvVars && project.missingEnvVars.length > 0 && (
-                          <div>
-                            <div className="text-sm font-medium text-yellow-400 mb-1">
-                              {t.missingEnvVars}
-                            </div>
-                            <ul className="list-disc list-inside text-sm text-gray-300 space-y-1">
-                              {project.missingEnvVars.map((varName, i) => (
-                                <li key={i} className="font-mono">{varName}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </TabsContent>
-
-            {canManage && (
-                <>
-                    <TabsContent value="env" className="mt-6">
-                        <EnvVarsManager 
-                            projectId={projectId} 
-                            initialEnvVars={project.envVars || []} 
-                            onUpdate={fetchProject} 
-                        />
-                    </TabsContent>
-
-                    <TabsContent value="logs" className="mt-6">
-                    <div className="bg-black/30 rounded-lg p-4 overflow-x-auto">
-                        <pre className="font-mono text-xs text-gray-300 whitespace-pre">
-                        {project.deploymentLogs || t.noLogs}
-                        </pre>
-                    </div>
-                    </TabsContent>
-                    
-                    <TabsContent value="settings" className="mt-6">
-                    <Settings 
-                        project={project} 
-                        language={language} 
-                        onSettingsChange={fetchProject} 
-                    />
-                    </TabsContent>
-                </>
-            )}
-          </Tabs>
+          )}
         </div>
-      </main>
+
+        {/* --- TABS --- */}
+        <Tabs defaultValue="logs" className="w-full">
+          <TabsList className="bg-white/5 border-b border-gray-800 w-full justify-start rounded-none p-0 h-auto">
+            <TabsTrigger
+              value="logs"
+              className="px-6 py-3 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 text-gray-400"
+            >
+              <Terminal className="w-4 h-4 mr-2" />
+              {t.logs}
+            </TabsTrigger>
+
+            {isOwner && (
+              <>
+                <TabsTrigger
+                  value="env"
+                  className="px-6 py-3 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 text-gray-400"
+                >
+                  <Terminal className="w-4 h-4 mr-2" />
+                  ENV
+                  {(project.missingEnvVars?.length || 0) > 0 && <AlertCircle className="w-3 h-3 ml-2 text-yellow-500" />}
+                </TabsTrigger>
+
+                <TabsTrigger
+                  value="settings"
+                  className="px-6 py-3 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 text-gray-400"
+                >
+                  <Settings className="w-4 h-4 mr-2" />
+                  {t.settings}
+                </TabsTrigger>
+
+                {/* ⭐ НОВЫЙ ТАБ: ИСТОРИЯ */}
+                <TabsTrigger
+                  value="deployments"
+                  className="px-6 py-3 rounded-none data-[state=active]:bg-transparent data-[state=active]:border-b-2 data-[state=active]:border-blue-500 data-[state=active]:text-blue-400 text-gray-400"
+                >
+                  <History className="w-4 h-4 mr-2" />
+                  {language === 'ru' ? 'История' : 'History'}
+                </TabsTrigger>
+              </>
+            )}
+          </TabsList>
+
+          <TabsContent value="logs" className="mt-6">
+            <div className="bg-[#111] border border-gray-800 rounded-lg p-4 font-mono text-sm min-h-[400px] overflow-auto whitespace-pre-wrap text-gray-300">
+              {project.deploymentLogs || <span className="text-gray-600">{t.noLogs}</span>}
+            </div>
+          </TabsContent>
+
+          {isOwner && (
+            <>
+              <TabsContent value="env" className="mt-6">
+                <EnvVarsManager
+                  projectId={project.id}
+                  initialEnvVars={project.envVars || []}
+                  onUpdate={loadProject}
+                />
+              </TabsContent>
+
+              <TabsContent value="settings" className="mt-6">
+                <ProjectSettings project={project} onUpdate={loadProject} />
+              </TabsContent>
+
+              {/* ⭐ КОНТЕНТ НОВОГО ТАБА */}
+              <TabsContent value="deployments" className="mt-6">
+                <div className="bg-[#111] border border-gray-800 rounded-lg p-4">
+                  <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                    <History className="w-5 h-5 text-blue-400" />
+                    {language === 'ru' ? 'История деплоев' : 'Deployment History'}
+                  </h2>
+
+                  {deploymentsList.length === 0 ? (
+                    <p className="text-gray-500 py-8 text-center">
+                      {language === 'ru' ? 'История пуста. Запустите деплой.' : 'No deployment history yet.'}
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {deploymentsList.map((deploy: any) => {
+                        const isCurrent = project.currentImage === deploy.image;
+                        const shortHash = deploy.image.split(':').pop();
+
+                        return (
+                          <div
+                            key={deploy.id}
+                            className={`flex flex-col sm:flex-row items-start sm:items-center justify-between p-4 rounded border transition-colors ${isCurrent
+                                ? 'bg-green-900/10 border-green-500/30'
+                                : 'bg-white/5 border-white/10 hover:border-gray-600'
+                              }`}
+                          >
+                            <div className="flex flex-col mb-3 sm:mb-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-white font-mono font-medium text-sm bg-black/50 px-2 py-1 rounded">
+                                  {shortHash}
+                                </span>
+                                {isCurrent && (
+                                  <span className="text-[10px] uppercase font-bold text-green-400 bg-green-900/30 px-2 py-0.5 rounded-full border border-green-500/30">
+                                    Active
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-gray-500 text-xs mt-1">
+                                {new Date(deploy.createdAt).toLocaleString()} • {deploy.initiator || 'Unknown'}
+                              </span>
+                            </div>
+
+                            {!isCurrent && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleRollback(deploy.image)}
+                                disabled={isRollingBack !== null}
+                                className="border-blue-500/30 hover:bg-blue-500/20 text-blue-400 hover:text-blue-300 w-full sm:w-auto"
+                              >
+                                {isRollingBack === deploy.image ? (
+                                  <Loader2 className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <>
+                                    <RotateCcw className="w-3 h-3 mr-2" />
+                                    {language === 'ru' ? 'Откатить' : 'Rollback'}
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </TabsContent>
+            </>
+          )}
+        </Tabs>
+      </div>
     </div>
   );
 }
