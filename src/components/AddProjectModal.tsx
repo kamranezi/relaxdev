@@ -128,27 +128,26 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[600px] w-[95vw] max-h-[90vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
+      {/* ⭐ ДОБАВЛЕНО: overflow-hidden на DialogContent */}
+      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[600px] w-[95vw] max-h-[90vh] overflow-y-auto overflow-x-hidden custom-scrollbar p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{language === 'ru' ? 'Новый проект' : 'New Project'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="space-y-6 overflow-hidden">
           {/* 1. ВЫБОР РЕПОЗИТОРИЯ */}
           {!user ? (
             <div className="text-center py-4 text-gray-400">
               <p>Войдите через GitHub, чтобы видеть список репозиториев.</p>
             </div>
           ) : (
-            <div className="flex flex-col gap-4 w-full">
+            <div className="flex flex-col gap-4 w-full overflow-hidden">
               {selectedRepo ? (
                 <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between w-full overflow-hidden">
-                  {/* ⭐ КЛЮЧЕВЫЕ ИСПРАВЛЕНИЯ: w-full, overflow-hidden, min-w-0 - переместили комментарий сюда */}
                   <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                     <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
                       <Github className="w-4 h-4 text-blue-400" />
                     </div>
-                    {/* ⭐ min-w-0 критически важен для работы truncate внутри flex */}
                     <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
                       <span className="text-sm font-medium text-blue-100 truncate">
                         {selectedRepo.full_name}
@@ -212,7 +211,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
           )}
 
           {/* 2. НАЗВАНИЕ И URL */}
-          <div className="space-y-3 pt-4 border-t border-gray-800">
+          <div className="space-y-3 pt-4 border-t border-gray-800 overflow-hidden">
             <div className="space-y-2 w-full overflow-hidden">
               <label className="text-xs font-medium text-gray-400">Project Name (ID)</label>
               <Input
@@ -247,52 +246,34 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
             />
           </div>
 
-          {/* 4. НАСТРОЙКИ (как в Settings) */}
-          <div className="space-y-4 pt-4 border-t border-gray-800">
+          {/* 4. НАСТРОЙКИ */}
+          <div className="space-y-4 pt-4 border-t border-gray-800 overflow-hidden">
             {/* Публичный проект */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex flex-col">
-                <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer text-base">
-                  {language === 'ru' ? 'Публичный проект' : 'Public Project'}
-                </Label>
-                <p className="text-sm text-gray-400 mt-1">
-                  {language === 'ru'
-                    ? 'Разрешить всем пользователям просматривать этот проект'
-                    : 'Allow anyone to view this project'}
-                </p>
-              </div>
-              <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-2 sm:pt-0">
-                <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
-                <Switch
-                  id="public-switch"
-                  checked={isPublic}
-                  onCheckedChange={setIsPublic}
-                />
-              </div>
+            <div className="flex items-center justify-between gap-4 w-full overflow-hidden">
+              <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer text-sm flex-shrink min-w-0">
+                {language === 'ru' ? 'Публичный проект' : 'Public Project'}
+              </Label>
+              <Switch
+                id="public-switch"
+                checked={isPublic}
+                onCheckedChange={setIsPublic}
+                className="flex-shrink-0"
+              />
             </div>
 
             <div className="border-t border-gray-800" />
 
             {/* Автодеплой */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex flex-col">
-                <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer text-base">
-                  {language === 'ru' ? 'Автодеплой' : 'Autodeploy'}
-                </Label>
-                <p className="text-sm text-gray-400 mt-1">
-                  {language === 'ru'
-                    ? 'Автоматически пересобирать при каждом пуше в main'
-                    : 'Automatically rebuild on every push to main'}
-                </p>
-              </div>
-              <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto pt-2 sm:pt-0">
-                <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
-                <Switch
-                  id="autodeploy-switch"
-                  checked={autodeploy}
-                  onCheckedChange={setAutodeploy}
-                />
-              </div>
+            <div className="flex items-center justify-between gap-4 w-full overflow-hidden">
+              <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer text-sm flex-shrink min-w-0">
+                {language === 'ru' ? 'Автодеплой' : 'Autodeploy'}
+              </Label>
+              <Switch
+                id="autodeploy-switch"
+                checked={autodeploy}
+                onCheckedChange={setAutodeploy}
+                className="flex-shrink-0"
+              />
             </div>
           </div>
 
