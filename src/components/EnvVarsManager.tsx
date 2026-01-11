@@ -8,33 +8,52 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/components/AuthProvider';
 import { getTranslation } from '@/lib/i18n';
 import { useLanguage } from '@/components/LanguageContext';
-import { Plus, X, Loader2, Copy, Check, Upload, FileText, List, Save } from 'lucide-react';
+import { 
+  Plus, 
+  X, 
+  Loader2, 
+  Copy, 
+  Check, 
+  Upload, 
+  FileText, 
+  List, 
+  Save,
+  Eye,
+  EyeOff,
+  Pencil
+} from 'lucide-react';
 
 interface EnvVarsManagerProps {
-  projectId: string;
+  // projectId нужен только для API режима. Если не передан - работаем локально.
+  projectId?: string; 
   initialEnvVars: ProjectEnvVar[];
-  onUpdate: () => Promise<void>;
+  // onUpdate нужен для API режима (обновить данные после сохранения)
+  onUpdate?: () => Promise<void>;
+  // onChange нужен для локального режима (вернуть данные родителю)
+  onChange?: (vars: ProjectEnvVar[]) => void;
 }
 
-export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsManagerProps) {
+export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }: EnvVarsManagerProps) {
   const { user } = useAuth();
   const { language } = useLanguage();
   const t = getTranslation(language);
 
   const [mode, setMode] = useState<'list' | 'raw'>('list');
-  // ⭐ ЗАЩИТА ПРИ ИНИЦИАЛИЗАЦИИ
-  const [envVars, setEnvVars] = useState<ProjectEnvVar[]>(() => {
-      if (Array.isArray(initialEnvVars)) return initialEnvVars;
-      return [];
-  });
+  const [envVars, setEnvVars] = useState<ProjectEnvVar[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Поля ввода
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
+  
+  // UI состояния
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [visibleValues, setVisibleValues] = useState<Record<number, boolean>>({}); // Для глазика
   const [rawContent, setRawContent] = useState('');
+  
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ⭐ ЗАЩИТА ПРИ ОБНОВЛЕНИИ ПРОПСОВ
+  // Инициализация
   useEffect(() => {
     let vars = initialEnvVars;
     if (vars && typeof vars === 'object' && !Array.isArray(vars)) {
@@ -44,6 +63,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
     setEnvVars(Array.isArray(vars) ? vars : []);
   }, [initialEnvVars]);
 
+  // Синхронизация Raw контента при переключении табов
   useEffect(() => {
     if (mode === 'raw') {
       const text = envVars.map(v => `${v.key}=${v.value}`).join('\n');
@@ -51,12 +71,24 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
     }
   }, [mode, envVars]);
 
-  const saveEnvVars = async (newVars: ProjectEnvVar[]) => {
-    if (!user) return;
+  // Главная функция сохранения
+  const handleSaveVars = async (newVars: ProjectEnvVar[]) => {
+    // 1. ЛОКАЛЬНЫЙ РЕЖИМ (При создании проекта)
+    if (onChange) {
+        setEnvVars(newVars);
+        onChange(newVars);
+        // Очищаем поля ввода после добавления
+        setNewKey('');
+        setNewValue('');
+        return;
+    }
+
+    // 2. API РЕЖИМ (Внутри проекта)
+    if (!projectId || !user) return;
+    
     setIsSaving(true);
     try {
       const idToken = await user.getIdToken();
-      // Можно отправлять пустой массив, сервер теперь поймет
       const res = await fetch(`/api/projects/${projectId}`, {
         method: 'PUT',
         headers: { 
@@ -67,7 +99,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
       });
 
       if (res.ok) {
-        await onUpdate();
+        if (onUpdate) await onUpdate();
         setNewKey('');
         setNewValue('');
       } else {
@@ -83,13 +115,37 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
 
   const handleAddSingle = () => {
     if (!newKey.trim() || !newValue.trim()) return;
-    const updated = [...envVars, { key: newKey.trim(), value: newValue.trim() }];
-    saveEnvVars(updated);
+    // Если ключ уже есть, обновляем его, иначе добавляем
+    const existingIndex = envVars.findIndex(v => v.key === newKey.trim());
+    let updated = [...envVars];
+    
+    if (existingIndex >= 0) {
+        updated[existingIndex] = { key: newKey.trim(), value: newValue.trim() };
+    } else {
+        updated.push({ key: newKey.trim(), value: newValue.trim() });
+    }
+    
+    handleSaveVars(updated);
   };
 
   const handleRemove = (index: number) => {
     const updated = envVars.filter((_, i) => i !== index);
-    saveEnvVars(updated);
+    handleSaveVars(updated);
+  };
+
+  const handleEdit = (index: number) => {
+    const item = envVars[index];
+    setNewKey(item.key);
+    setNewValue(item.value);
+    // Можно проскроллить вверх, если список длинный
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const toggleVisibility = (index: number) => {
+    setVisibleValues(prev => ({
+        ...prev,
+        [index]: !prev[index]
+    }));
   };
 
   const handleSaveRaw = () => {
@@ -103,12 +159,16 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
       if (firstEqualIndex === -1) continue;
       const key = trimmed.slice(0, firstEqualIndex).trim();
       let value = trimmed.slice(firstEqualIndex + 1).trim();
+      // Убираем кавычки
       if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
         value = value.slice(1, -1);
       }
       if (key) parsedVars.push({ key, value });
     }
-    saveEnvVars(parsedVars);
+    
+    handleSaveVars(parsedVars);
+    // В локальном режиме переключаем обратно на список для наглядности
+    if (onChange) setMode('list'); 
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -133,6 +193,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
 
   return (
     <div className="space-y-4">
+      {/* --- ТУЛБАР --- */}
       <div className="flex items-center justify-between bg-black/30 p-2 rounded-lg">
         <div className="flex gap-2">
           <Button variant={mode === 'list' ? 'secondary' : 'ghost'} size="sm" onClick={() => setMode('list')} className="text-sm">
@@ -155,13 +216,27 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
         )}
       </div>
 
+      {/* --- СПИСОК --- */}
       {mode === 'list' ? (
         <div className="space-y-4">
-          <div className="bg-black/30 rounded-lg p-4">
+          <div className="bg-black/30 rounded-lg p-4 border border-gray-800">
             <div className="text-sm font-medium text-gray-300 mb-3">{t.addEnvVar}</div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Input value={newKey} onChange={(e) => setNewKey(e.target.value)} placeholder="KEY" className="bg-black/50 border-gray-700 font-mono" />
-              <Input value={newValue} onChange={(e) => setNewValue(e.target.value)} placeholder="VALUE" className="bg-black/50 border-gray-700 font-mono" type="text" />
+              <Input 
+                value={newKey} 
+                onChange={(e) => setNewKey(e.target.value)} 
+                placeholder="KEY" 
+                className="bg-black/50 border-gray-700 font-mono" 
+              />
+              <div className="relative flex-1">
+                 <Input 
+                    value={newValue} 
+                    onChange={(e) => setNewValue(e.target.value)} 
+                    placeholder="VALUE" 
+                    className="bg-black/50 border-gray-700 font-mono pr-10" 
+                    type="text" 
+                 />
+              </div>
               <Button onClick={handleAddSingle} disabled={!newKey.trim() || !newValue.trim() || isSaving} className="bg-white text-black hover:bg-gray-200 flex-shrink-0">
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <><Plus className="h-4 w-4 md:mr-2" /><span className="hidden md:inline">{t.add}</span></>}
               </Button>
@@ -173,32 +248,64 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate }: EnvVarsM
               <div className="text-center py-8 text-gray-500">{t.noEnvVars}</div>
             ) : (
               envVars.map((envVar, index) => (
-                <div key={index} className="bg-black/30 rounded-lg p-3 sm:p-4 flex items-center justify-between group">
+                <div key={index} className="bg-black/30 rounded-lg p-3 sm:p-4 flex items-center justify-between group hover:border-gray-700 border border-transparent transition-all">
                   <div className="flex-1 overflow-hidden mr-4">
                     <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>
                     <div className="flex items-center gap-2">
-                      <span className="text-gray-400 font-mono text-xs truncate max-w-[200px] sm:max-w-md bg-black/20 px-1.5 py-0.5 rounded">{envVar.value}</span>
-                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(envVar.value, `${envVar.key}-value`)} className="h-6 w-6 p-0 opacity-50 group-hover:opacity-100 transition-opacity">
-                        {copiedKey === `${envVar.key}-value` ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3 text-gray-400" />}
+                      <div className="relative max-w-full">
+                          <span className="text-gray-300 font-mono text-xs truncate block bg-black/40 px-2 py-1 rounded min-w-[150px] max-w-[200px] sm:max-w-md">
+                            {visibleValues[index] ? envVar.value : '••••••••••••'}
+                          </span>
+                      </div>
+                      
+                      {/* Кнопка Глаз */}
+                      <Button variant="ghost" size="sm" onClick={() => toggleVisibility(index)} className="h-6 w-6 p-0 text-gray-500 hover:text-white">
+                        {visibleValues[index] ? <EyeOff className="h-3 w-3" /> : <Eye className="h-3 w-3" />}
+                      </Button>
+
+                      {/* Кнопка Копировать */}
+                      <Button variant="ghost" size="sm" onClick={() => copyToClipboard(envVar.value, `${envVar.key}-value`)} className="h-6 w-6 p-0 text-gray-500 hover:text-white">
+                        {copiedKey === `${envVar.key}-value` ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
                       </Button>
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => handleRemove(index)} disabled={isSaving} className="text-red-400 hover:text-red-300 hover:bg-red-900/20">
-                    <X className="h-4 w-4" />
-                  </Button>
+                  
+                  <div className="flex items-center gap-1">
+                      {/* Кнопка Редактировать (Карандаш) */}
+                      <Button variant="ghost" size="sm" onClick={() => handleEdit(index)} disabled={isSaving} className="text-gray-400 hover:text-blue-400 h-8 w-8 p-0">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+
+                      {/* Кнопка Удалить */}
+                      <Button variant="ghost" size="sm" onClick={() => handleRemove(index)} disabled={isSaving} className="text-gray-400 hover:text-red-400 h-8 w-8 p-0">
+                        <X className="h-4 w-4" />
+                      </Button>
+                  </div>
                 </div>
               ))
             )}
           </div>
         </div>
       ) : (
-        <div className="bg-black/30 rounded-lg p-4">
+        /* --- RAW EDITOR --- */
+        <div className="bg-black/30 rounded-lg p-4 border border-gray-800">
+            <p className="text-xs text-gray-400 mb-2">
+                {language === 'ru' 
+                    ? 'Формат: KEY=VALUE (каждая с новой строки).' 
+                    : 'Format: KEY=VALUE (one per line).'}
+            </p>
             <Textarea 
                 value={rawContent}
                 onChange={(e) => setRawContent(e.target.value)}
                 className="bg-black/50 border-gray-700 font-mono text-sm min-h-[300px] whitespace-pre"
                 placeholder="DB_HOST=localhost&#10;DB_USER=admin"
             />
+            {/* Для локального режима нужна кнопка сохранения и здесь, так как тулбар может быть далеко */}
+            {onChange && (
+                 <Button onClick={handleSaveRaw} className="mt-4 w-full bg-white text-black hover:bg-gray-200">
+                    {t.saveChanges}
+                 </Button>
+            )}
         </div>
       )}
     </div>

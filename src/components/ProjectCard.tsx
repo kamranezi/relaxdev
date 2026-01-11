@@ -33,27 +33,12 @@ const GithubIcon = (props: React.SVGProps<SVGSVGElement>) => (
     </svg>
 );
 
-// Функция безопасного форматирования даты (чтобы не было Invalid Date)
-const safeFormatDate = (dateString: string | undefined | null, locale: string) => {
-    if (!dateString) return '—';
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return '—';
-    // Для карточки делаем дату короче (только день и месяц + время), или полную по желанию
-    return date.toLocaleString(locale, { 
-        day: 'numeric', 
-        month: 'short', 
-        hour: '2-digit', 
-        minute: '2-digit' 
-    });
-};
-
 export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogin }: ProjectCardProps) {
   const t = getTranslation(language);
   const { user } = useAuth();
   const router = useRouter();
   const [isRedeploying, setIsRedeploying] = useState(false);
 
-  // Используем canEdit для проверки прав
   const canEdit = project.canEdit;
 
   const handleRedeploy = async (e: React.MouseEvent) => {
@@ -217,16 +202,13 @@ export function ProjectCard({ project, language, onRedeploy, isPublic, ownerLogi
           </div>
         </div>
         <div className="flex items-center gap-3">
-             {/* Мы полностью убрали Image, чтобы не было ошибок консоли. Только иконка. */}
              {ownerLogin && (
                 <a href={`https://github.com/${ownerLogin}`} target="_blank" rel="noopener noreferrer" className="text-gray-600 hover:text-gray-400" title={ownerLogin}>
                    <UserIcon className="h-5 w-5" />
                 </a>
              )}
-             {/* Исправленная дата */}
-             <p className="text-sm text-gray-500">
-                {safeFormatDate(project.lastDeployed, language === 'ru' ? 'ru-RU' : 'en-US')}
-             </p>
+             {/* Отображаем время "назад" */}
+             <p className="text-sm text-gray-500">{project.lastDeployed}</p>
         </div>
       </div>
     </div>

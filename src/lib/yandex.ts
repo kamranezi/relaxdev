@@ -21,16 +21,13 @@ export async function getIAMToken(): Promise<string> {
       }
     );
 
-    if (!response.ok) {
-      throw new Error(`Metadata service error: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Metadata service error: ${response.status}`);
 
     const data = await response.json();
     cachedToken = {
       token: data.access_token,
       expiresAt: Date.now() + 11 * 60 * 60 * 1000,
     };
-
     return data.access_token;
   } catch (error) {
     console.warn('Failed to get IAM token from metadata:', error);
@@ -39,8 +36,6 @@ export async function getIAMToken(): Promise<string> {
     throw new Error('No IAM token available. Set YC_IAM_TOKEN env variable for local development.');
   }
 }
-
-// --- API Контейнеров (Serverless Containers) ---
 
 export async function listContainers(folderId: string) {
   if (!folderId) throw new Error('Folder ID is required');
@@ -59,7 +54,6 @@ export async function listContainers(folderId: string) {
     const errorText = await response.text().catch(() => 'Unknown error');
     throw new Error(`Yandex API Error: ${response.status} - ${errorText}`);
   }
-
   return response.json();
 }
 
@@ -79,8 +73,6 @@ export async function getContainerByName(name: string) {
 
 export async function deleteContainer(containerId: string) {
   const token = await getIAMToken();
-  if (!token) throw new Error('No IAM token found');
-
   const response = await fetch(
     `https://serverless-containers.api.cloud.yandex.net/containers/v1/containers/${containerId}`,
     {
@@ -88,7 +80,6 @@ export async function deleteContainer(containerId: string) {
       headers: { 'Authorization': `Bearer ${token}` },
     }
   );
-
   if (!response.ok && response.status !== 404) {
     const errorText = await response.text().catch(() => 'Unknown error');
     throw new Error(`Failed to delete container: ${response.status} - ${errorText}`);
@@ -96,9 +87,36 @@ export async function deleteContainer(containerId: string) {
   return true;
 }
 
-// --- API Реестра (Container Registry) ---
-// ⭐ НОВЫЕ ФУНКЦИИ ДЛЯ УДАЛЕНИЯ ОБРАЗОВ
+// --- УДАЛЕНИЕ ИЗ РЕЕСТРА (ПОЛНОЕ) ---
 
+// 1. Удаление конкретного образа по ID
+async function deleteImage(imageId: string) {
+    const token = await getIAMToken();
+    const response = await fetch(
+        `https://container-registry.api.cloud.yandex.net/container-registry/v1/images/${imageId}`,
+        {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${token}` }
+        }
+    );
+    if (!response.ok && response.status !== 404) {
+        console.error(`Failed to delete image ${imageId}: ${response.status}`);
+    }
+}
+
+// 2. Получение списка образов в репозитории
+async function listImages(repositoryId: string) {
+    const token = await getIAMToken();
+    const response = await fetch(
+        `https://container-registry.api.cloud.yandex.net/container-registry/v1/images?repositoryId=${repositoryId}`,
+        { headers: { 'Authorization': `Bearer ${token}` } }
+    );
+    if (!response.ok) return [];
+    const data = await response.json();
+    return data.images || [];
+}
+
+// 3. Удаление самой папки репозитория
 export async function deleteRepository(repositoryId: string) {
   const token = await getIAMToken();
   const response = await fetch(
@@ -108,44 +126,45 @@ export async function deleteRepository(repositoryId: string) {
       headers: { 'Authorization': `Bearer ${token}` }
     }
   );
-
   if (!response.ok && response.status !== 404) {
       console.error(`Failed to delete repository ${repositoryId}: ${response.status}`);
   }
 }
 
+// ⭐ ГЛАВНАЯ ФУНКЦИЯ ОЧИСТКИ
 export async function deleteProjectRegistry(projectName: string) {
     const registryId = process.env.YC_REGISTRY_ID;
     if (!registryId) {
         console.warn('YC_REGISTRY_ID not set, skipping registry cleanup');
         return;
     }
-
     try {
         const token = await getIAMToken();
-        // 1. Получаем список репозиториев в реестре
+        // 1. Ищем репозиторий проекта
         const listRes = await fetch(
             `https://container-registry.api.cloud.yandex.net/container-registry/v1/repositories?registryId=${registryId}`,
             { headers: { 'Authorization': `Bearer ${token}` } }
         );
         
-        if (!listRes.ok) {
-            console.error('Failed to list repositories');
-            return;
-        }
+        if (!listRes.ok) return;
         
         const data = await listRes.json();
         const repos = data.repositories || [];
-        
-        // 2. Ищем репозиторий, имя которого совпадает с именем проекта
         const repo = repos.find((r: any) => r.name === projectName);
         
         if (repo) {
-            console.log(`Deleting registry repository: ${repo.name} (${repo.id})`);
-            // 3. Удаляем репозиторий (это удалит и все образы внутри)
+            console.log(`Found repository ${repo.name} (${repo.id}). Cleaning up...`);
+            
+            // 2. Сначала удаляем ВСЕ образы внутри
+            const images = await listImages(repo.id);
+            if (images.length > 0) {
+                console.log(`Deleting ${images.length} images from ${repo.name}...`);
+                await Promise.all(images.map((img: any) => deleteImage(img.id)));
+            }
+
+            // 3. Теперь удаляем пустой репозиторий
+            console.log(`Deleting repository folder...`);
             await deleteRepository(repo.id);
-        } else {
-            console.log(`Registry repository for ${projectName} not found.`);
         }
     } catch (e) {
         console.error('Error cleaning up registry:', e);

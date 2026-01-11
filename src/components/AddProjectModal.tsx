@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Github, Lock, Loader2, X, Plus } from 'lucide-react';
+import { Github, Lock, Loader2, X } from 'lucide-react';
 import { ProjectEnvVar } from '@/types';
 import { User } from 'firebase/auth';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
+import { EnvVarsManager } from '@/components/EnvVarsManager';
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -17,8 +18,7 @@ interface AddProjectModalProps {
     gitUrl: string, 
     projectName: string, 
     gitToken: string | undefined, 
-    // ⭐ ИЗМЕНЕНИЕ: Разрешаем null
-    envVars: ProjectEnvVar[] | null, 
+    envVars: ProjectEnvVar[] | null,
     isPublic: boolean, 
     autodeploy: boolean
   ) => Promise<void>;
@@ -42,10 +42,8 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   const [isLoadingRepos, setIsLoadingRepos] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRepo, setSelectedRepo] = useState<Repo | null>(null);
-  const [envVars, setEnvVars] = useState<ProjectEnvVar[]>([]);
-  const [newEnvKey, setNewEnvKey] = useState('');
-  const [newEnvValue, setNewEnvValue] = useState('');
   
+  const [envVars, setEnvVars] = useState<ProjectEnvVar[]>([]);
   const [isPublic, setIsPublic] = useState(false);
   const [autodeploy, setAutodeploy] = useState(true);
 
@@ -61,7 +59,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
         setRepos(await res.json());
       } else {
         setRepos([]);
-        console.error('Failed to load repos', await res.text());
       }
     } catch (e) {
       console.error(e);
@@ -71,17 +68,13 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   }, [user]);
 
   useEffect(() => {
-    if (isOpen && user) {
-      loadRepos();
-    }
+    if (isOpen && user) loadRepos();
     if (isOpen) {
         setSelectedRepo(null);
         setGitUrl('');
         setProjectName('');
         setSearchQuery('');
         setEnvVars([]);
-        setNewEnvKey('');
-        setNewEnvValue('');
         setIsPublic(false);
         setAutodeploy(true); 
     }
@@ -96,11 +89,9 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const url = e.target.value;
     setGitUrl(url);
-
     const match = url.match(/github\.com\/[^\/]+\/([^\/]+?)(\.git)?$/);
     if (match && match[1]) {
-        const repoName = match[1];
-        setProjectName(repoName.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
+        setProjectName(match[1].toLowerCase().replace(/[^a-z0-9-]/g, '-'));
     }
   };
 
@@ -108,18 +99,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
     setSelectedRepo(null);
     setGitUrl('');
     setProjectName('');
-  };
-
-  const handleAddEnvVar = () => {
-    if (newEnvKey.trim() && newEnvValue.trim()) {
-      setEnvVars([...envVars, { key: newEnvKey.trim(), value: newEnvValue.trim() }]);
-      setNewEnvKey('');
-      setNewEnvValue('');
-    }
-  };
-
-  const handleRemoveEnvVar = (index: number) => {
-    setEnvVars(envVars.filter((_, i) => i !== index));
   };
 
   const handleDeployClick = async () => {
@@ -130,7 +109,6 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
         gitUrl, 
         projectName, 
         '', 
-        // ⭐ ИЗМЕНЕНИЕ: Если массив пуст, отправляем null
         envVars.length > 0 ? envVars : null, 
         isPublic, 
         autodeploy
@@ -150,12 +128,13 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[500px] w-[95vw] max-h-[90vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
+      <DialogContent className="bg-[#111] border-gray-800 text-white sm:max-w-[600px] w-[95vw] max-h-[90vh] overflow-y-auto custom-scrollbar p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle>{language === 'ru' ? 'Новый проект' : 'New Project'}</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
+            {/* 1. ВЫБОР РЕПОЗИТОРИЯ */}
             {!user ? (
                  <div className="text-center py-4 text-gray-400">
                     <p>Войдите через GitHub, чтобы видеть список репозиториев.</p>
@@ -163,12 +142,14 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
             ) : (
                 <div className="flex flex-col gap-4 w-full">
                     {selectedRepo ? (
+                        /* ⭐ ИСПРАВЛЕНИЕ: max-w-full и overflow-hidden для родителя */
                         <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between w-full max-w-full overflow-hidden">
+                            {/* ⭐ ИСПРАВЛЕНИЕ: flex-1 и min-w-0 для текстового блока */}
                             <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                                 <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
                                     <Github className="w-4 h-4 text-blue-400" />
                                 </div>
-                                <div className="flex flex-col min-w-0 overflow-hidden flex-1">
+                                <div className="flex flex-col min-w-0 overflow-hidden w-full">
                                     <span className="text-sm font-medium text-blue-100 truncate block w-full">
                                         {selectedRepo.full_name}
                                     </span>
@@ -178,10 +159,8 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                 </div>
                             </div>
                             <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={handleResetSelection}
-                                className="text-gray-400 hover:text-white hover:bg-white/10 h-8 w-8 p-0 rounded-full flex-shrink-0 ml-2"
+                                variant="ghost" size="sm" onClick={handleResetSelection}
+                                className="text-gray-400 hover:text-white h-8 w-8 p-0 ml-2 flex-shrink-0"
                             >
                                 <X className="w-4 h-4" />
                             </Button>
@@ -195,7 +174,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                 className="bg-black/50 border-gray-700"
                             />
                             
-                            <div className="h-[200px] overflow-y-auto border border-gray-800 rounded-md p-2 space-y-1 custom-scrollbar">
+                            <div className="h-[150px] overflow-y-auto border border-gray-800 rounded-md p-2 space-y-1 custom-scrollbar">
                                 {isLoadingRepos ? (
                                     <div className="flex justify-center p-4"><Loader2 className="animate-spin text-gray-500" /></div>
                                 ) : filteredRepos.length === 0 ? (
@@ -207,6 +186,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                             onClick={() => handleRepoSelect(repo)}
                                             className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group w-full max-w-full overflow-hidden"
                                         >
+                                            {/* ⭐ ИСПРАВЛЕНИЕ: min-w-0 для названия */}
                                             <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
                                                 {repo.private ? <Lock className="w-3 h-3 text-yellow-500 shrink-0" /> : <Github className="w-3 h-3 text-gray-400 shrink-0" />}
                                                 <span className="truncate text-gray-300 group-hover:text-white block w-full">{repo.full_name}</span>
@@ -223,6 +203,7 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                 </div>
             )}
 
+            {/* 2. НАЗВАНИЕ И URL */}
             <div className="space-y-3 pt-4 border-t border-gray-800">
                 <div className="space-y-2">
                     <label className="text-xs font-medium text-gray-400">Project Name (ID)</label>
@@ -247,99 +228,31 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                 )}
             </div>
 
-            <div className="space-y-3 pt-4 border-t border-gray-800">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-medium text-gray-400">
+            {/* 3. ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ */}
+            <div className="pt-4 border-t border-gray-800">
+                <div className="mb-2 text-xs font-medium text-gray-400">
                   {language === 'ru' ? 'Переменные окружения' : 'Environment Variables'}
-                </label>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleAddEnvVar}
-                  disabled={!newEnvKey.trim() || !newEnvValue.trim()}
-                  className="text-xs h-7"
-                >
-                  <Plus className="w-3 h-3 mr-1" />
-                  {language === 'ru' ? 'Добавить' : 'Add'}
-                </Button>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <Input
-                    value={newEnvKey}
-                    onChange={(e) => setNewEnvKey(e.target.value)}
-                    placeholder={language === 'ru' ? 'KEY' : 'KEY'}
-                    className="bg-black/50 border-gray-700 text-xs flex-1 min-w-0"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
-                        handleAddEnvVar();
-                      }
-                    }}
-                  />
-                  <Input
-                    value={newEnvValue}
-                    onChange={(e) => setNewEnvValue(e.target.value)}
-                    placeholder={language === 'ru' ? 'VALUE' : 'VALUE'}
-                    className="bg-black/50 border-gray-700 text-xs flex-1 min-w-0"
-                    type="password"
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newEnvKey.trim() && newEnvValue.trim()) {
-                        handleAddEnvVar();
-                      }
-                    }}
-                  />
                 </div>
-
-                {envVars.length > 0 && (
-                  <div className="space-y-1 max-h-32 overflow-y-auto border border-gray-800 rounded-md p-2 custom-scrollbar">
-                    {envVars.map((envVar, index) => (
-                      <div key={index} className="flex items-center justify-between text-xs bg-gray-900/50 p-2 rounded">
-                        <span className="text-gray-300 min-w-0 flex-1 flex items-center overflow-hidden">
-                          <span className="font-mono text-blue-400 truncate max-w-[40%] block">{envVar.key}</span>
-                          <span className="text-gray-500 mx-2 flex-shrink-0">=</span>
-                          <span className="text-green-400 truncate max-w-[40%] block">••••••••</span>
-                        </span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleRemoveEnvVar(index)}
-                          className="h-5 w-5 p-0 text-red-400 hover:text-red-300 flex-shrink-0 ml-2"
-                        >
-                          <X className="w-3 h-3" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+                <EnvVarsManager 
+                    initialEnvVars={envVars}
+                    onChange={(newVars) => setEnvVars(newVars)}
+                />
             </div>
             
+            {/* 4. НАСТРОЙКИ */}
             <div className="space-y-4 pt-4 border-t border-gray-800">
-                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
-                    <div className="flex flex-col">
-                        <Label htmlFor="public-switch" className="cursor-pointer text-sm font-medium text-gray-300">
-                            {language === 'ru' ? 'Сделать проект публичным' : 'Public Project'}
-                        </Label>
-                    </div>
-                    <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
-                        <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
-                        <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
-                    </div>
+                 <div className="flex items-center justify-between">
+                    <Label htmlFor="public-switch" className="cursor-pointer text-sm font-medium text-gray-300">
+                        {language === 'ru' ? 'Сделать проект публичным' : 'Public Project'}
+                    </Label>
+                    <Switch id="public-switch" checked={isPublic} onCheckedChange={setIsPublic} />
                  </div>
                  
-                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
-                    <div className="flex flex-col">
-                        <Label htmlFor="autodeploy-switch" className="cursor-pointer text-sm font-medium text-gray-300">
-                            {language === 'ru' ? 'Включить автодеплой' : 'Enable Autodeploy'}
-                        </Label>
-                    </div>
-                    <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto">
-                        <span className="sm:hidden text-sm text-gray-500 mr-2">Включить:</span>
-                        <Switch id="autodeploy-switch" checked={autodeploy} onCheckedChange={setAutodeploy} />
-                    </div>
+                 <div className="flex items-center justify-between">
+                    <Label htmlFor="autodeploy-switch" className="cursor-pointer text-sm font-medium text-gray-300">
+                        {language === 'ru' ? 'Включить автодеплой' : 'Enable Autodeploy'}
+                    </Label>
+                    <Switch id="autodeploy-switch" checked={autodeploy} onCheckedChange={setAutodeploy} />
                  </div>
              </div>
 
