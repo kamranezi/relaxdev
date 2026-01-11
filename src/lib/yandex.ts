@@ -101,6 +101,8 @@ async function deleteImage(imageId: string) {
     );
     if (!response.ok && response.status !== 404) {
         console.error(`Failed to delete image ${imageId}: ${response.status}`);
+    } else {
+        console.log(`Deleted image: ${imageId}`);
     }
 }
 
@@ -128,10 +130,12 @@ export async function deleteRepository(repositoryId: string) {
   );
   if (!response.ok && response.status !== 404) {
       console.error(`Failed to delete repository ${repositoryId}: ${response.status}`);
+  } else {
+      console.log(`Deleted repository: ${repositoryId}`);
   }
 }
 
-// ⭐ ГЛАВНАЯ ФУНКЦИЯ ОЧИСТКИ
+// ⭐ ГЛАВНАЯ ФУНКЦИЯ ОЧИСТКИ (ИСПРАВЛЕННАЯ)
 export async function deleteProjectRegistry(projectName: string) {
     const registryId = process.env.YC_REGISTRY_ID;
     if (!registryId) {
@@ -146,25 +150,35 @@ export async function deleteProjectRegistry(projectName: string) {
             { headers: { 'Authorization': `Bearer ${token}` } }
         );
         
-        if (!listRes.ok) return;
+        if (!listRes.ok) {
+            console.error(`Failed to list repositories: ${listRes.status}`);
+            return;
+        }
         
         const data = await listRes.json();
         const repos = data.repositories || [];
         
-        // ⭐ ВАЖНОЕ ИСПРАВЛЕНИЕ:
-        // Имя репозитория в Yandex Cloud имеет формат: "cr.yandex/<registry-id>/<project-name>"
-        // Поэтому точное сравнение (===) не сработает. Нужно использовать endsWith.
-        const repo = repos.find((r: any) => r.name.endsWith('/' + projectName));
+        console.log(`Searching for repo "${projectName}" in registry. Found ${repos.length} total.`);
+
+        // ⭐ ИСПРАВЛЕНИЕ ПОИСКА:
+        // Теперь ищем либо точное совпадение имени, либо окончание пути
+        // (на случай если имя возвращается как 'id/name')
+        const repo = repos.find((r: any) => 
+            r.name === projectName || 
+            r.name.endsWith('/' + projectName)
+        );
         
         if (repo) {
-            console.log(`Found repository ${repo.name} (${repo.id}). Cleaning up...`);
+            console.log(`Found repository: ${repo.name} (ID: ${repo.id}). Cleaning up...`);
             
-            // 2. Сначала удаляем ВСЕ образы внутри (иначе папку не дадут удалить)
+            // 2. Сначала удаляем ВСЕ образы внутри
             const images = await listImages(repo.id);
             if (images.length > 0) {
                 console.log(`Deleting ${images.length} images from ${repo.name}...`);
-                // Используем Promise.allSettled чтобы ошибка одного удаления не ломала остальные
+                // Используем Promise.allSettled
                 await Promise.allSettled(images.map((img: any) => deleteImage(img.id)));
+            } else {
+                console.log('No images found inside repository.');
             }
 
             // 3. Теперь удаляем пустой репозиторий
@@ -172,7 +186,7 @@ export async function deleteProjectRegistry(projectName: string) {
             await deleteRepository(repo.id);
             console.log(`Registry cleanup for ${projectName} complete.`);
         } else {
-            console.log(`Repository for ${projectName} not found in registry.`);
+            console.warn(`Repository for project "${projectName}" NOT FOUND. Available repos:`, repos.map((r: any) => r.name).join(', '));
         }
     } catch (e) {
         console.error('Error cleaning up registry:', e);

@@ -261,7 +261,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
                 type="file" 
                 ref={fileInputRef} 
                 className="hidden" 
-                accept="*,.env,.txt,.json,text/plain,application/json" 
+                // Убрали accept, чтобы отображались все файлы
                 onChange={handleFileUpload} 
               />
               <Button 
