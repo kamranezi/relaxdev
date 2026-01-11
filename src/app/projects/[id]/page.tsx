@@ -49,7 +49,6 @@ export default function ProjectDetailPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRedeploying, setIsRedeploying] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  // Мы удалили состояния newEnvKey, newEnvValue, isSaving, copiedKey — они теперь внутри компонента
 
   const t = getTranslation(language);
   const projectId = params.id as string;
@@ -267,12 +266,14 @@ export default function ProjectDetailPage() {
           </div>
 
           <Tabs defaultValue="overview" className="w-full">
+            {/* ⭐ ИСПРАВЛЕНИЕ: overflow-x-auto, no-scrollbar и правильный padding/margin */}
             <div className="w-full overflow-x-auto pb-2 -mb-2 sm:mb-0 sm:pb-0 scrollbar-none">
-                <TabsList className="bg-black/50 w-full sm:w-auto flex justify-start min-w-[320px]">
-                  <TabsTrigger className="flex-1" value="overview">{t.overview}</TabsTrigger>
-                  {canManage && <TabsTrigger className="flex-1" value="env">{t.envVars}</TabsTrigger>}
-                  {canManage && <TabsTrigger className="flex-1" value="logs">{t.logs}</TabsTrigger>}
-                  {canManage && <TabsTrigger className="flex-1" value="settings">{t.settings}</TabsTrigger>}
+                {/* ⭐ ИСПРАВЛЕНИЕ: inline-flex (чтобы работало min-w) и flex-nowrap */}
+                <TabsList className="bg-black/50 inline-flex w-auto min-w-full sm:w-auto sm:min-w-0 justify-start h-auto p-1">
+                  <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="overview">{t.overview}</TabsTrigger>
+                  {canManage && <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="env">{t.envVars}</TabsTrigger>}
+                  {canManage && <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="logs">{t.logs}</TabsTrigger>}
+                  {canManage && <TabsTrigger className="flex-shrink-0 px-4 py-2 whitespace-nowrap" value="settings">{t.settings}</TabsTrigger>}
                 </TabsList>
             </div>
 
@@ -341,7 +342,6 @@ export default function ProjectDetailPage() {
             {canManage && (
                 <>
                     <TabsContent value="env" className="mt-6">
-                        {/* ⭐ ИСПОЛЬЗУЕМ НОВЫЙ КОМПОНЕНТ */}
                         <EnvVarsManager 
                             projectId={projectId} 
                             initialEnvVars={project.envVars || []} 

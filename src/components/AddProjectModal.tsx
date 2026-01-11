@@ -142,18 +142,18 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
             ) : (
                 <div className="flex flex-col gap-4 w-full">
                     {selectedRepo ? (
-                        /* ⭐ ИСПРАВЛЕНИЕ: max-w-full и overflow-hidden для родителя */
-                        <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between w-full max-w-full overflow-hidden">
-                            {/* ⭐ ИСПРАВЛЕНИЕ: flex-1 и min-w-0 для текстового блока */}
+                        /* ⭐ ИСПРАВЛЕНИЕ: w-full и overflow-hidden */
+                        <div className="bg-blue-900/20 border border-blue-500/50 rounded-md p-3 flex items-center justify-between w-full overflow-hidden">
+                            {/* ⭐ ИСПРАВЛЕНИЕ: min-w-0 критически важен для truncate внутри flex */ }
                             <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
                                 <div className="bg-blue-500/20 p-2 rounded-full flex-shrink-0">
                                     <Github className="w-4 h-4 text-blue-400" />
                                 </div>
-                                <div className="flex flex-col min-w-0 overflow-hidden w-full">
-                                    <span className="text-sm font-medium text-blue-100 truncate block w-full">
+                                <div className="flex flex-col min-w-0 flex-1">
+                                    <span className="text-sm font-medium text-blue-100 truncate w-full block">
                                         {selectedRepo.full_name}
                                     </span>
-                                    <span className="text-xs text-blue-300/70 truncate block w-full">
+                                    <span className="text-xs text-blue-300/70 truncate w-full block">
                                         {selectedRepo.url}
                                     </span>
                                 </div>
@@ -184,9 +184,8 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
                                         <div 
                                             key={repo.id}
                                             onClick={() => handleRepoSelect(repo)}
-                                            className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group w-full max-w-full overflow-hidden"
+                                            className="p-2 rounded cursor-pointer flex items-center justify-between text-sm hover:bg-white/5 transition-colors group w-full overflow-hidden"
                                         >
-                                            {/* ⭐ ИСПРАВЛЕНИЕ: min-w-0 для названия */}
                                             <div className="flex items-center gap-2 overflow-hidden flex-1 min-w-0">
                                                 {repo.private ? <Lock className="w-3 h-3 text-yellow-500 shrink-0" /> : <Github className="w-3 h-3 text-gray-400 shrink-0" />}
                                                 <span className="truncate text-gray-300 group-hover:text-white block w-full">{repo.full_name}</span>

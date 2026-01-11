@@ -52,8 +52,8 @@ export const translations = {
     copyError: 'Ошибка копирования',
     
     // Кнопки для моб версии
-    buildShort: 'Билд', 
-    deleteShort: 'Удал.',
+    buildShort: 'Редеплой', 
+    deleteShort: 'Удалить',
 
     // Настройки
     autodeploy: 'Автодеплой (Push-to-Deploy)',
