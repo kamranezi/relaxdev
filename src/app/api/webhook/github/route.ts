@@ -24,101 +24,130 @@ export async function POST(req: NextRequest) {
 
     const eventType = req.headers.get('x-github-event');
     const rawBody = await req.text();
-    // if (!verifySignature(req, rawBody)) return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    
+    // ⚠️ Раскомментируйте для проверки подписи в production
+    // if (!verifySignature(req, rawBody)) {
+    //   return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    // }
 
     const payload = JSON.parse(rawBody);
-    if (payload.zen) return NextResponse.json({ message: 'Pong!' }, { status: 200 });
-
-    // ⭐ 1. ЛОГИКА СТАТУСОВ (ОБНОВЛЕНИЕ ПРИ ЗАВЕРШЕНИИ)
-    if (eventType === 'workflow_run') {
-        const { action, workflow_run } = payload;
-        
-        // Обрабатываем только завершение
-        if (action === 'completed') {
-            console.log(`[Webhook] Workflow finished: ${workflow_run.name} -> ${workflow_run.conclusion}`);
-            
-            // Пытаемся найти ID проекта. При dispatch он часто лежит в payload.workflow_run.inputs
-            // Но надежнее, если мы передавали projectName как input
-            // @ts-ignore
-            const projectName = workflow_run.inputs?.projectName; // Github API v2+
-
-            if (projectName) {
-                const isSuccess = workflow_run.conclusion === 'success';
-                const newStatus = isSuccess ? 'Активен' : 'Ошибка';
-                
-                const updates: any = { status: newStatus };
-                if (isSuccess) updates.lastDeployed = new Date().toISOString();
-
-                // Обновляем статус в базе
-                await db.ref(`projects/${projectName}`).update(updates);
-                
-                return NextResponse.json({ success: true, project: projectName, status: newStatus });
-            }
-        }
-        return NextResponse.json({ message: 'Workflow processed' });
+    
+    // Ping event
+    if (payload.zen) {
+      return NextResponse.json({ message: 'Pong!' }, { status: 200 });
     }
 
-    // ⭐ 2. ЛОГИКА ЗАПУСКА (PUSH)
+    // ⭐ УДАЛЕНО: Обработка workflow_run (это делает сам workflow через update-status)
+    // Workflow сам вызывает /api/projects/:id/update-status в конце
+    
+    // ⭐ ЛОГИКА АВТОДЕПЛОЯ ПРИ PUSH
     if (eventType === 'push') {
-        if (payload.ref !== 'refs/heads/main') {
+        const ref = payload.ref;
+        
+        // Проверяем, что это push в main
+        if (ref !== 'refs/heads/main') {
+            console.log(`[Webhook] Ignoring push to ${ref}`);
             return NextResponse.json({ message: 'Not main branch' }, { status: 200 });
         }
 
         const gitUrl = payload.repository.html_url;
-        console.log(`[Webhook] Push received for ${gitUrl}`);
+        const pusher = payload.pusher?.name || 'unknown';
+        
+        console.log(`[Webhook] Push to main by ${pusher}: ${gitUrl}`);
 
+        // Ищем проекты с этим репозиторием
         const projectsRef = db.ref('projects');
-        const snapshot = await projectsRef.orderByChild('repoUrl').equalTo(gitUrl).once('value');
+        const snapshot = await projectsRef
+            .orderByChild('repoUrl')
+            .equalTo(gitUrl)
+            .once('value');
+        
         const projects = snapshot.val();
 
         if (!projects) {
+            console.log(`[Webhook] No projects found for ${gitUrl}`);
             return NextResponse.json({ message: 'Project not found' }, { status: 404 });
         }
 
         const octokit = new Octokit({ auth: BUILDER_TOKEN });
+        const deployedProjects: string[] = [];
 
-        for (const [id, project] of Object.entries(projects) as [string, any][]) {
-            if (project.autodeploy === false) continue;
+        // Обрабатываем каждый проект
+        for (const [projectId, project] of Object.entries(projects) as [string, any][]) {
+            // Проверяем, включен ли автодеплой
+            if (project.autodeploy === false) {
+                console.log(`[Webhook] Autodeploy disabled for ${projectId}`);
+                continue;
+            }
 
-            console.log(`[Webhook] Auto-deploying: ${project.name} (${id})`);
+            console.log(`[Webhook] Triggering autodeploy for: ${project.name} (${projectId})`);
             
+            // Получаем токен пользователя
             const userRef = db.ref(`users`);
-            const usersSnapshot = await userRef.orderByChild('email').equalTo(project.owner).limitToFirst(1).once('value');
+            const usersSnapshot = await userRef
+                .orderByChild('email')
+                .equalTo(project.owner)
+                .limitToFirst(1)
+                .once('value');
+            
             const users = usersSnapshot.val();
             
             if (!users) {
-                console.error(`Owner not found for ${id}`);
+                console.error(`[Webhook] Owner not found for project ${projectId}`);
                 continue;
             }
             
             const ownerUid = Object.keys(users)[0];
-            const gitToken = users[ownerUid].githubAccessToken;
+            const userData = users[ownerUid];
+            const gitToken = userData?.githubAccessToken;
 
-            await octokit.actions.createWorkflowDispatch({
-                owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
-                repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
-                workflow_id: 'universal-builder.yml',
-                ref: 'main',
-                inputs: {
-                    gitUrl: gitUrl,
-                    projectName: project.id, // Важно передать ID
-                    gitToken: gitToken || '',
-                    owner: project.owner,
-                    envVars: project.envVars ? JSON.stringify(project.envVars) : '[]',
-                },
-            });
-            
-            await db.ref(`projects/${id}`).update({ 
-                status: 'Сборка',
-                lastDeployed: new Date().toISOString()
-            });
+            // Запускаем workflow
+            try {
+                await octokit.actions.createWorkflowDispatch({
+                    owner: process.env.BUILDER_REPO_OWNER || 'kamranezi',
+                    repo: process.env.BUILDER_REPO_NAME || 'ruvercel-builder',
+                    workflow_id: 'universal-builder.yml',
+                    ref: 'main',
+                    inputs: {
+                        gitUrl: gitUrl,
+                        projectName: projectId, // ⭐ ВАЖНО: передаём ID проекта
+                        gitToken: gitToken || '',
+                        owner: project.owner,
+                        envVars: project.envVars ? JSON.stringify(project.envVars) : '[]',
+                    },
+                });
+                
+                // Обновляем статус на "Сборка"
+                const now = new Date().toISOString();
+                await db.ref(`projects/${projectId}`).update({ 
+                    status: 'Сборка',
+                    updatedAt: now,
+                    lastDeployed: now,
+                });
+                
+                deployedProjects.push(projectId);
+                console.log(`[Webhook] Successfully triggered build for ${projectId}`);
+            } catch (err: any) {
+                console.error(`[Webhook] Failed to trigger build for ${projectId}:`, err.message);
+            }
         }
-        return NextResponse.json({ success: true });
+        
+        return NextResponse.json({ 
+            success: true, 
+            deployed: deployedProjects,
+            message: `Deployed ${deployedProjects.length} project(s)`
+        });
     }
 
+    // Игнорируем остальные события
+    console.log(`[Webhook] Ignored event: ${eventType}`);
     return NextResponse.json({ message: 'Event ignored' }, { status: 200 });
-  } catch (error) {
-    console.error('Webhook error:', error);
-    return NextResponse.json({ error: 'Webhook failed' }, { status: 500 });
+    
+  } catch (error: any) {
+    console.error('[Webhook] Error:', error);
+    return NextResponse.json({ 
+      error: 'Webhook failed',
+      details: error.message 
+    }, { status: 500 });
   }
 }
