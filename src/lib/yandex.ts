@@ -150,21 +150,29 @@ export async function deleteProjectRegistry(projectName: string) {
         
         const data = await listRes.json();
         const repos = data.repositories || [];
-        const repo = repos.find((r: any) => r.name === projectName);
+        
+        // ⭐ ВАЖНОЕ ИСПРАВЛЕНИЕ:
+        // Имя репозитория в Yandex Cloud имеет формат: "cr.yandex/<registry-id>/<project-name>"
+        // Поэтому точное сравнение (===) не сработает. Нужно использовать endsWith.
+        const repo = repos.find((r: any) => r.name.endsWith('/' + projectName));
         
         if (repo) {
             console.log(`Found repository ${repo.name} (${repo.id}). Cleaning up...`);
             
-            // 2. Сначала удаляем ВСЕ образы внутри
+            // 2. Сначала удаляем ВСЕ образы внутри (иначе папку не дадут удалить)
             const images = await listImages(repo.id);
             if (images.length > 0) {
                 console.log(`Deleting ${images.length} images from ${repo.name}...`);
-                await Promise.all(images.map((img: any) => deleteImage(img.id)));
+                // Используем Promise.allSettled чтобы ошибка одного удаления не ломала остальные
+                await Promise.allSettled(images.map((img: any) => deleteImage(img.id)));
             }
 
             // 3. Теперь удаляем пустой репозиторий
             console.log(`Deleting repository folder...`);
             await deleteRepository(repo.id);
+            console.log(`Registry cleanup for ${projectName} complete.`);
+        } else {
+            console.log(`Repository for ${projectName} not found in registry.`);
         }
     } catch (e) {
         console.error('Error cleaning up registry:', e);

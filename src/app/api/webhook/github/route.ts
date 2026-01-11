@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
                     status: 'Сборка',
                     updatedAt: now,
                     lastDeployed: now,
+                    buildStartedAt: Date.now() // ⭐ Добавляем метку времени старта (timestamp)
                 });
                 
                 deployedProjects.push(projectId);

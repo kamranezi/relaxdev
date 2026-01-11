@@ -184,7 +184,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
     if (onChange) setMode('list'); 
   };
 
-  // ⭐ ОБРАБОТКА ЗАГРУЗКИ ФАЙЛОВ (все текстовые файлы)
+  // ⭐ ИСПРАВЛЕННАЯ ОБРАБОТКА ЗАГРУЗКИ ФАЙЛОВ
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -194,32 +194,27 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
       const text = event.target?.result as string;
       if (!text) return;
       
-      // Если это JSON файл (по расширению или содержимому)
       const isJSON = file.name.endsWith('.json') || (text.trim().startsWith('{') && text.trim().endsWith('}'));
       
       if (isJSON) {
         try {
           const json = JSON.parse(text);
           let content = '';
-          
-          // Поддержка разных структур JSON
           if (typeof json === 'object' && json !== null) {
             Object.entries(json).forEach(([key, value]) => {
-              // Экранируем значения с пробелами или спецсимволами
               const val = String(value);
-              const needsQuotes = val.includes(' ') || val.includes('\n');
-              content += `${key}=${needsQuotes ? `"${val}"` : val}\n`;
+              // Если значение содержит пробелы или переносы, лучше обернуть в кавычки, но для raw вида часто оставляют как есть
+              content += `${key}=${val}\n`;
             });
           }
-          
           setRawContent(content.trim());
         } catch (error) {
           console.error('Invalid JSON:', error);
-          // Если не JSON, загружаем как текст
           setRawContent(text);
         }
       } else {
-        // Для .env, .txt и других текстовых файлов
+        // ДЛЯ ОБЫЧНЫХ .ENV и ТЕКСТОВЫХ ФАЙЛОВ
+        // Просто берем текст как есть, но можно сразу почистить пустые строки если надо
         setRawContent(text);
       }
     };
@@ -239,7 +234,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
 
   return (
     <div className="space-y-4">
-      {/* --- ТУЛБАР (ИСПРАВЛЕНО: SCROLL + ADAPTATION) --- */}
+      {/* --- ТУЛБАР (SCROLL + ADAPTATION) --- */}
       <div className="bg-black/30 p-2 rounded-lg overflow-x-auto custom-scrollbar">
         <div className="flex items-center justify-between min-w-max gap-4">
           <div className="flex gap-2">
@@ -335,7 +330,6 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
                   className="bg-black/30 rounded-lg p-3 sm:p-4 hover:border-gray-700 border border-transparent transition-all"
                 >
                   {editingIndex === index ? (
-                    /* ⭐ РЕЖИМ РЕДАКТИРОВАНИЯ */
                     <div className="flex flex-col sm:flex-row gap-2">
                       <Input 
                         value={editKey}
@@ -369,7 +363,6 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
                       </div>
                     </div>
                   ) : (
-                    /* ⭐ РЕЖИМ ПРОСМОТРА */
                     <div className="flex items-center justify-between group">
                       <div className="flex-1 overflow-hidden mr-4">
                         <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>

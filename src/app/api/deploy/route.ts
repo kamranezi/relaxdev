@@ -43,7 +43,6 @@ export async function POST(request: NextRequest) {
     const octokit = new Octokit({ auth: builderGithubToken });
 
     const body = await request.json();
-    // let { gitUrl... } потому что мы будем менять gitUrl
     let { gitUrl, projectName, envVars, isPublic, autodeploy } = body;
 
     if (!gitUrl || !projectName) {
@@ -65,7 +64,7 @@ export async function POST(request: NextRequest) {
       id: safeName,
       name: projectName,
       status: 'Сборка',
-      repoUrl: gitUrl, // Теперь здесь чистая ссылка без .git
+      repoUrl: gitUrl, 
       targetImage: `cr.yandex/${process.env.YC_REGISTRY_ID || '...'}/${safeName}:latest`,
       domain: '',
       owner: ownerEmail,
@@ -84,14 +83,12 @@ export async function POST(request: NextRequest) {
 
     await projectRef.set(projectData);
 
-    // ⭐ БЛОК ВЕБХУКА ⭐
-    if (autodeploy !== false) {
-      try {
+    // ⭐ БЛОК ВЕБХУКА (ТЕПЕРЬ СОЗДАЕТСЯ ВСЕГДА) ⭐
+    try {
         const repoUrlParts = gitUrl.replace('https://github.com/', '').split('/');
         const repoOwner = repoUrlParts[0];
         const repoName = repoUrlParts[1];
         
-        // Хардкод домена (как мы и договаривались)
         const webhookUrl = `https://relaxdev.ru/api/webhook/github`;
         
         const userOctokit = new Octokit({ auth: userGithubToken });
@@ -130,9 +127,9 @@ export async function POST(request: NextRequest) {
             await projectRef.update({ webhookId: webhookId });
         }
 
-      } catch (err: any) {
-        console.error('Failed to add webhook:', err.message);
-      }
+    } catch (err: any) {
+        // Логируем ошибку вебхука, но не роняем создание проекта
+        console.error('Failed to add webhook (might not have permissions):', err.message);
     }
     // ⭐ КОНЕЦ БЛОКА ВЕБХУКА ⭐
 
