@@ -248,11 +248,19 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
           {/* 4. НАСТРОЙКИ */}
           <div className="space-y-4 pt-4 border-t border-gray-800 overflow-hidden">
+
             {/* Публичный проект */}
             <div className="flex items-center justify-between gap-4 w-full overflow-hidden">
-              <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer text-sm flex-shrink min-w-0">
-                {language === 'ru' ? 'Публичный проект' : 'Public Project'}
-              </Label>
+              <div className="flex flex-col flex-1 min-w-0 mr-2">
+                <Label htmlFor="public-switch" className="text-white font-medium cursor-pointer text-sm truncate">
+                  {language === 'ru' ? 'Публичный проект' : 'Public Project'}
+                </Label>
+                <p className="text-xs text-gray-400 mt-1 truncate">
+                  {language === 'ru'
+                    ? 'Все пользователи увидят проект'
+                    : 'Allow anyone to view this project'}
+                </p>
+              </div>
               <Switch
                 id="public-switch"
                 checked={isPublic}
@@ -265,9 +273,16 @@ export function AddProjectModal({ isOpen, onClose, onDeploy, language, user }: A
 
             {/* Автодеплой */}
             <div className="flex items-center justify-between gap-4 w-full overflow-hidden">
-              <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer text-sm flex-shrink min-w-0">
-                {language === 'ru' ? 'Автодеплой' : 'Autodeploy'}
-              </Label>
+              <div className="flex flex-col flex-1 min-w-0 mr-2">
+                <Label htmlFor="autodeploy-switch" className="text-white font-medium cursor-pointer text-sm truncate">
+                  {language === 'ru' ? 'Автодеплой' : 'Autodeploy'}
+                </Label>
+                <p className="text-xs text-gray-400 mt-1 truncate">
+                  {language === 'ru'
+                    ? 'Автоматически пересобирать проект при каждом пуше'
+                    : 'Automatically rebuild on every push to main'}
+                </p>
+              </div>
               <Switch
                 id="autodeploy-switch"
                 checked={autodeploy}

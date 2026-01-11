@@ -184,7 +184,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
     if (onChange) setMode('list'); 
   };
 
-  // ⭐ ОБРАБОТКА ЗАГРУЗКИ ФАЙЛОВ (txt, env, json)
+  // ⭐ ОБРАБОТКА ЗАГРУЗКИ ФАЙЛОВ (все текстовые файлы)
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -194,26 +194,32 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
       const text = event.target?.result as string;
       if (!text) return;
       
-      // Если это JSON файл
-      if (file.name.endsWith('.json')) {
+      // Если это JSON файл (по расширению или содержимому)
+      const isJSON = file.name.endsWith('.json') || (text.trim().startsWith('{') && text.trim().endsWith('}'));
+      
+      if (isJSON) {
         try {
           const json = JSON.parse(text);
           let content = '';
           
           // Поддержка разных структур JSON
-          if (typeof json === 'object') {
+          if (typeof json === 'object' && json !== null) {
             Object.entries(json).forEach(([key, value]) => {
-              content += `${key}=${value}\n`;
+              // Экранируем значения с пробелами или спецсимволами
+              const val = String(value);
+              const needsQuotes = val.includes(' ') || val.includes('\n');
+              content += `${key}=${needsQuotes ? `"${val}"` : val}\n`;
             });
           }
           
           setRawContent(content.trim());
         } catch (error) {
           console.error('Invalid JSON:', error);
-          alert('Invalid JSON file');
+          // Если не JSON, загружаем как текст
+          setRawContent(text);
         }
       } else {
-        // Для .env и .txt просто загружаем текст
+        // Для .env, .txt и других текстовых файлов
         setRawContent(text);
       }
     };
@@ -233,54 +239,56 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
 
   return (
     <div className="space-y-4">
-      {/* --- ТУЛБАР --- */}
-      <div className="flex items-center justify-between bg-black/30 p-2 rounded-lg">
-        <div className="flex gap-2">
-          <Button 
-            variant={mode === 'list' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            onClick={() => setMode('list')} 
-            className="text-sm"
-          >
-            <List className="h-4 w-4 mr-2" />{t.envListMode}
-          </Button>
-          <Button 
-            variant={mode === 'raw' ? 'secondary' : 'ghost'} 
-            size="sm" 
-            onClick={() => setMode('raw')} 
-            className="text-sm"
-          >
-            <FileText className="h-4 w-4 mr-2" />{t.envRawMode}
-          </Button>
-        </div>
-        {mode === 'raw' && (
+      {/* --- ТУЛБАР (ИСПРАВЛЕНО: SCROLL + ADAPTATION) --- */}
+      <div className="bg-black/30 p-2 rounded-lg overflow-x-auto custom-scrollbar">
+        <div className="flex items-center justify-between min-w-max gap-4">
           <div className="flex gap-2">
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept=".env,.txt,.json,text/plain,application/json" 
-              onChange={handleFileUpload} 
-            />
             <Button 
-              variant="outline" 
+              variant={mode === 'list' ? 'secondary' : 'ghost'} 
               size="sm" 
-              onClick={() => fileInputRef.current?.click()} 
-              className="bg-transparent border-gray-600 hover:bg-gray-800"
+              onClick={() => setMode('list')} 
+              className="text-sm"
             >
-              <Upload className="h-4 w-4 mr-2" />{t.uploadEnv}
+              <List className="h-4 w-4 mr-2" />{t.envListMode}
             </Button>
             <Button 
+              variant={mode === 'raw' ? 'secondary' : 'ghost'} 
               size="sm" 
-              onClick={handleSaveRaw} 
-              disabled={isSaving} 
-              className="bg-white text-black hover:bg-gray-200"
+              onClick={() => setMode('raw')} 
+              className="text-sm"
             >
-              {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
-              {t.saveChanges}
+              <FileText className="h-4 w-4 mr-2" />{t.envRawMode}
             </Button>
           </div>
-        )}
+          {mode === 'raw' && (
+            <div className="flex gap-2">
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                accept="*,.env,.txt,.json,text/plain,application/json" 
+                onChange={handleFileUpload} 
+              />
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => fileInputRef.current?.click()} 
+                className="bg-transparent border-gray-600 hover:bg-gray-800"
+              >
+                <Upload className="h-4 w-4 mr-2" />{t.uploadEnv}
+              </Button>
+              <Button 
+                size="sm" 
+                onClick={handleSaveRaw} 
+                disabled={isSaving} 
+                className="bg-white text-black hover:bg-gray-200"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4 mr-2" />}
+                {t.saveChanges}
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* --- СПИСОК --- */}
@@ -366,7 +374,7 @@ export function EnvVarsManager({ projectId, initialEnvVars, onUpdate, onChange }
                       <div className="flex-1 overflow-hidden mr-4">
                         <div className="font-mono text-sm text-blue-400 mb-1 truncate">{envVar.key}</div>
                         <div className="flex items-center gap-2">
-                          <span className="text-gray-300 font-mono text-xs truncate block bg-black/40 px-2 py-1 rounded min-w-[150px] max-w-[200px] sm:max-w-md">
+                          <span className="text-gray-300 font-mono text-xs truncate block bg-black/40 px-2 py-1 rounded min-w-[120px] sm:min-w-[150px] max-w-[200px] sm:max-w-md">
                             {visibleValues[index] ? envVar.value : '••••••••••••'}
                           </span>
                           
